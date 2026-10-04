@@ -1,5 +1,7 @@
 package com.jarvisai
 
+import android.app.assist.AssistContent
+import android.app.assist.AssistStructure
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
 import android.service.voice.VoiceInteractionSessionService
@@ -9,8 +11,12 @@ class JarvisSessionService : VoiceInteractionSessionService() {
 }
 
 class JarvisVoiceSession(service: JarvisSessionService) : VoiceInteractionSession(service) {
-    override fun onHandleAssist(data: android.app.assist.AssistStructure?, content: Bundle?) {
-        // Android-managed assistant context is available here for approved integrations.
-        super.onHandleAssist(data, content)
+    override fun onHandleAssist(
+        data: Bundle?,
+        structure: AssistStructure?,
+        content: AssistContent?
+    ) {
+        // Android supplies assistant context through this approved callback.
+        super.onHandleAssist(data, structure, content)
     }
 }
