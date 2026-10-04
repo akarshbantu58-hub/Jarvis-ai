@@ -3,10 +3,11 @@ package com.jarvisai
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.widget.TextView
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -18,6 +19,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var jarvis: JarvisCore
+    private lateinit var actions: AppActionEngine
     private val handler = Handler(Looper.getMainLooper())
     private val clock = object : Runnable {
         override fun run() {
@@ -27,16 +29,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val speechLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val text = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        if (!text.isNullOrBlank()) processCommand(text)
+        result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { processCommand(it) }
     }
-
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) speechLauncher.launch(jarvis.voiceIntent()) else showResponse("Microphone permission denied. You can enable it later in Permission Center.")
+        if (granted) speechLauncher.launch(jarvis.voiceIntent()) else showResponse("Microphone permission denied. Enable it in Permission Center.")
     }
-
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) launchCamera() else showResponse("Camera permission denied. Enable it from Permission Center when you need Vision.")
+        if (granted) launchCamera() else showResponse("Camera permission denied. Enable it in Permission Center.")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,21 +43,20 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         jarvis = JarvisCore(this)
-        binding.statusText.text = "● SYSTEM ONLINE  •  PERMISSION-SAFE MODE"
-        binding.responseText.text = "JARVIS is ready. Permissions are requested only when a feature needs them."
+        actions = AppActionEngine(this)
+        binding.statusText.text = "● SYSTEM ONLINE  •  JARVIS READY"
+        binding.responseText.text = "JARVIS is ready. Ask a question or say a command."
         binding.listenButton.setOnClickListener { startListening() }
         binding.sendButton.setOnClickListener { processCommand(binding.commandInput.text?.toString().orEmpty()) }
-
-        binding.devCard.setOnClickListener { showResponse("DEV STUDIO foundation ready.") }
+        binding.devCard.setOnClickListener { showResponse("DEV STUDIO is ready for the configured development tools.") }
         binding.cameraCard.setOnClickListener { requestCamera() }
         binding.settingsCard.setOnClickListener { startActivity(Intent(this, PermissionActivity::class.java)) }
-        binding.aiCard.setOnClickListener { showResponse("AI CORE ready. Configure an AI provider in API HUB.") }
-        binding.personalCard.setOnClickListener { showResponse("Personalization module ready for theme and voice settings.") }
-        binding.apiCard.setOnClickListener { showResponse("API HUB: store your provider configuration locally on this device.") }
+        binding.aiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
+        binding.personalCard.setOnClickListener { showResponse("Personalization is available through your JARVIS settings.") }
+        binding.apiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
         binding.automationCard.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
-
         binding.dockVoice.setOnClickListener { startListening() }
-        binding.dockAI.setOnClickListener { showResponse("AI CORE ready.") }
+        binding.dockAI.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
         binding.dockApps.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
         binding.dockSettings.setOnClickListener { startActivity(Intent(this, PermissionActivity::class.java)) }
         binding.dockHome.setOnClickListener { binding.contentScroll.smoothScrollTo(0, 0) }
@@ -66,11 +64,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startListening() {
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            speechLauncher.launch(jarvis.voiceIntent())
-        } else {
-            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) speechLauncher.launch(jarvis.voiceIntent())
+        else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     private fun requestCamera() {
@@ -79,22 +74,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchCamera() {
-        runCatching {
-            startActivity(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE))
-        }.onFailure { showResponse("No compatible camera app is available.") }
+        runCatching { startActivity(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)) }
+            .onFailure { showResponse("No compatible camera app is available.") }
     }
 
     private fun processCommand(command: String) {
         if (command.isBlank()) return
         binding.commandInput.setText(command)
-        val response = jarvis.executeCommand(command)
-        showResponse(response)
-        jarvis.speak(response)
+        val local = runCatching { actions.execute(command) }.getOrNull()
+        if (local != null) { showResponse(local); jarvis.speak(local); return }
+        val lower = command.lowercase(Locale.getDefault())
+        if (lower.contains("api hub") || lower.contains("api settings")) {
+            startActivity(Intent(this, ApiHubActivity::class.java)); return
+        }
+        if (lower.contains("permissions") || lower.contains("permission center")) {
+            startActivity(Intent(this, PermissionActivity::class.java)); return
+        }
+        if (lower.contains("automation")) {
+            startActivity(Intent(this, AutomationActivity::class.java)); return
+        }
+        showResponse("Thinking…")
+        ApiClient.ask(this, command) { response -> showResponse(response); jarvis.speak(response) }
     }
 
     private fun showResponse(text: String) {
         binding.responseText.text = text
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, text.take(120), Toast.LENGTH_SHORT).show()
+    }
+
+    fun enableOverlay() {
+        if (!Settings.canDrawOverlays(this)) {
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            return
+        }
+        startService(Intent(this, JarvisOverlayService::class.java))
     }
 
     override fun onDestroy() {
