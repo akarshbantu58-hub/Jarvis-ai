@@ -5,4 +5,5 @@
     <color name="surface">#121A2B</color>
     <color name="text_primary">#F5F7FF</color>
     <color name="text_secondary">#A9B8D9</color>
+    <color name="ic_launcher_bg">#FFFFFF</color>
 </resources>
