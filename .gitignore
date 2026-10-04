@@ -1,0 +1,20 @@
+# Keep `local.properties` out of version control
+local.properties
+
+# Gradle files
+.gradle/
+**/build/
+
+# Android Studio / IntelliJ files
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# User-specific files
+*.keystore
+*.jks
+
+# OS files
+.DS_Store
+Thumbs.db
