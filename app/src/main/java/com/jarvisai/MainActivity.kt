@@ -32,7 +32,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) speechLauncher.launch(jarvis.voiceIntent()) else showResponse("Microphone permission is required for voice control.")
+        if (granted) speechLauncher.launch(jarvis.voiceIntent()) else showResponse("Microphone permission denied. You can enable it later in Permission Center.")
+    }
+
+    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera() else showResponse("Camera permission denied. Enable it from Permission Center when you need Vision.")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,31 +44,44 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         jarvis = JarvisCore(this)
-        binding.statusText.text = "● SYSTEM ONLINE  •  VOICE READY"
-        binding.responseText.text = "Good evening, Akarsh. How can I assist you?"
+        binding.statusText.text = "● SYSTEM ONLINE  •  PERMISSION-SAFE MODE"
+        binding.responseText.text = "JARVIS is ready. Permissions are requested only when a feature needs them."
         binding.listenButton.setOnClickListener { startListening() }
         binding.sendButton.setOnClickListener { processCommand(binding.commandInput.text?.toString().orEmpty()) }
-        bindModule(binding.devCard, "DEV STUDIO")
-        bindModule(binding.cameraCard, "VISION")
-        bindModule(binding.settingsCard, "SYSTEM SETTINGS")
-        bindModule(binding.aiCard, "AI CORE")
-        bindModule(binding.personalCard, "PERSONALIZATION")
-        bindModule(binding.apiCard, "API HUB")
+
+        binding.devCard.setOnClickListener { showResponse("DEV STUDIO foundation ready.") }
+        binding.cameraCard.setOnClickListener { requestCamera() }
+        binding.settingsCard.setOnClickListener { startActivity(Intent(this, PermissionActivity::class.java)) }
+        binding.aiCard.setOnClickListener { showResponse("AI CORE ready. Configure an AI provider in API HUB.") }
+        binding.personalCard.setOnClickListener { showResponse("Personalization module ready for theme and voice settings.") }
+        binding.apiCard.setOnClickListener { showResponse("API HUB: store your provider configuration locally on this device.") }
+        binding.automationCard.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
+
         binding.dockVoice.setOnClickListener { startListening() }
-        binding.dockAI.setOnClickListener { showResponse("AI CORE ready. Add an API key in API HUB to connect a model.") }
-        binding.dockApps.setOnClickListener { showResponse("APP DOCK ready. Voice commands can launch supported apps.") }
-        binding.dockSettings.setOnClickListener { openSystemSettings() }
+        binding.dockAI.setOnClickListener { showResponse("AI CORE ready.") }
+        binding.dockApps.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
+        binding.dockSettings.setOnClickListener { startActivity(Intent(this, PermissionActivity::class.java)) }
         binding.dockHome.setOnClickListener { binding.contentScroll.smoothScrollTo(0, 0) }
         handler.post(clock)
     }
 
-    private fun bindModule(view: TextView, name: String) {
-        view.setOnClickListener { showResponse("$name module selected. UI shell is ready for its Android feature integration.") }
+    private fun startListening() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            speechLauncher.launch(jarvis.voiceIntent())
+        } else {
+            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
-    private fun startListening() {
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) speechLauncher.launch(jarvis.voiceIntent())
-        else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+    private fun requestCamera() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) launchCamera()
+        else cameraPermission.launch(Manifest.permission.CAMERA)
+    }
+
+    private fun launchCamera() {
+        runCatching {
+            startActivity(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE))
+        }.onFailure { showResponse("No compatible camera app is available.") }
     }
 
     private fun processCommand(command: String) {
@@ -78,10 +95,6 @@ class MainActivity : AppCompatActivity() {
     private fun showResponse(text: String) {
         binding.responseText.text = text
         Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun openSystemSettings() {
-        startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
     }
 
     override fun onDestroy() {
