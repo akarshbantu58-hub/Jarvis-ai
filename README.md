@@ -11,6 +11,8 @@ Download the latest debug APK from the GitHub Actions artifact when the build wo
 - Download the `debug-apk` artifact
 - Extract it and install the APK on your Android device
 
+You can also build the APK locally using the instructions below.
+
 ## Build instructions
 
 Requirements:
