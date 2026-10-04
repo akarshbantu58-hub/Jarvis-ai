@@ -2,6 +2,15 @@
 
 This repository has been scaffolded as a minimal Android application so it can be built into an APK.
 
+## APK download
+
+Download the latest debug APK from the GitHub Actions artifact when the build workflow runs.
+
+- Go to the repository's Actions tab
+- Open the latest "Build APK" workflow run
+- Download the `debug-apk` artifact
+- Extract it and install the APK on your Android device
+
 ## Build instructions
 
 Requirements:
