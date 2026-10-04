@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">JARVIS Ultimate</string>
+    <string name="title_activity_main">JARVIS Ultimate</string>
+    <string name="package_name">ai.akarsh.jarvis</string>
+    <string name="custom_url_scheme">ai.akarsh.jarvis</string>
+</resources>
