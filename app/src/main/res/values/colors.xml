@@ -1,9 +1,10 @@
 <resources>
-    <color name="primary">#6C63FF</color>
-    <color name="primary_dark">#4B44D1</color>
-    <color name="background">#0B1020</color>
-    <color name="surface">#121A2B</color>
-    <color name="text_primary">#F5F7FF</color>
-    <color name="text_secondary">#A9B8D9</color>
-    <color name="ic_launcher_bg">#FFFFFF</color>
+    <color name="primary">#00E5FF</color>
+    <color name="primary_dark">#00A8C7</color>
+    <color name="accent">#00E5FF</color>
+    <color name="background">#05080D</color>
+    <color name="surface">#101822</color>
+    <color name="text_primary">#F5FBFF</color>
+    <color name="text_secondary">#9CB2C7</color>
+    <color name="ic_launcher_bg">#05080D</color>
 </resources>
