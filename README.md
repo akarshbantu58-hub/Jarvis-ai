@@ -4,7 +4,11 @@ This repository has been scaffolded as a minimal Android application so it can b
 
 ## APK download
 
-Download the latest debug APK from the GitHub Actions artifact when the build workflow runs.
+Direct APK download (after publishing a release asset named `app-debug.apk`):
+
+https://github.com/akarshbantu58-hub/Jarvis-ai/releases/latest/download/app-debug.apk
+
+If there is no release yet, use the GitHub Actions artifact instead:
 
 - Go to the repository's Actions tab
 - Open the latest "Build APK" workflow run
