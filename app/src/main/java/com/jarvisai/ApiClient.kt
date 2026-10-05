@@ -9,11 +9,13 @@ object ApiClient {
             callback("Please tell me what you want to know.")
             return
         }
+
         val manager = AiProviderManager(context)
         if (!manager.isConfigured()) {
-            callback("No AI provider is configured. Open API HUB and choose a provider, model, endpoint and key.")
+            callback("No valid AI provider is configured. Open API HUB and paste a supported API key.")
             return
         }
+
         manager.ask(prompt) { result ->
             callback(result.getOrElse { error ->
                 "AI request failed: ${error.message ?: "unknown provider error"}"
