@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Jarvis AI</string>
+    <string name="app_name">JARVIS OS</string>
+    <string name="accessibility_service_description">Optional JARVIS automation service. It can inspect accessible UI labels and perform user-requested clicks, scrolling, text entry and gestures after you explicitly enable the service in Android Settings.</string>
 </resources>
