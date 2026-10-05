@@ -9,11 +9,12 @@ on:
 permissions:
   contents: read
 
-# Keep only the newest validation/build run. This prevents a backlog of stale
-# builds while the project is being repaired; once stable, pushes are infrequent.
+# Do not cancel an active Android build when another commit arrives. This is
+# important while validating the APK pipeline because cancellation can make a
+# healthy build look like a Gradle/lint failure.
 concurrency:
   group: jarvis-android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-android:
