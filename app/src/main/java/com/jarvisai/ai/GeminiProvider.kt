@@ -7,7 +7,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 class GeminiProvider : AiProvider {
@@ -32,15 +31,13 @@ class GeminiProvider : AiProvider {
                 } else {
                     "$base/models/${config.model}:generateContent"
                 }
-                val encodedKey = URLEncoder.encode(config.apiKey, StandardCharsets.UTF_8.name())
-                val url = URL("$endpoint?key=$encodedKey")
-                require(url.protocol.equals("https", true)) { "Gemini endpoint must use HTTPS." }
+                require(endpoint.startsWith("https://")) { "Gemini endpoint must use HTTPS." }
                 val body = JSONObject().apply {
                     put("contents", JSONArray().put(
                         JSONObject().put("parts", JSONArray().put(JSONObject().put("text", prompt)))
                     ))
                 }.toString()
-                val connection = url.openConnection() as HttpURLConnection
+                val connection = URL(endpoint).openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.connectTimeout = 15000
                 connection.readTimeout = 30000
@@ -48,6 +45,8 @@ class GeminiProvider : AiProvider {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.setRequestProperty("Accept", "application/json")
+                // Google documents the x-goog-api-key header for Gemini API authentication.
+                connection.setRequestProperty("x-goog-api-key", config.apiKey)
                 try {
                     connection.outputStream.use { it.write(body.toByteArray(StandardCharsets.UTF_8)) }
                     val code = connection.responseCode
@@ -59,8 +58,13 @@ class GeminiProvider : AiProvider {
                         ?.optJSONObject(0)
                         ?.optJSONObject("content")
                         ?.optJSONArray("parts")
-                        ?.optJSONObject(0)
-                        ?.optString("text")
+                        ?.let { parts ->
+                            buildString {
+                                for (i in 0 until parts.length()) {
+                                    parts.optJSONObject(i)?.optString("text")?.let { append(it) }
+                                }
+                            }
+                        }
                         ?.takeIf { it.isNotBlank() }
                         ?: error("Gemini returned no text.")
                 } finally {
