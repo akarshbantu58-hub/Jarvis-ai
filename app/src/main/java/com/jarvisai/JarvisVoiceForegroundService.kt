@@ -39,15 +39,16 @@ class JarvisVoiceForegroundService : Service() {
                 stopWakeMode()
                 return START_NOT_STICKY
             }
-            ACTION_START_WAKE, null -> startWakeMode()
+            ACTION_START_WAKE -> startWakeMode()
+            else -> return START_NOT_STICKY
         }
-        return START_STICKY
+        // Never resurrect microphone capture after Android kills the service.
+        // Wake-word mode must always be explicitly started by the user.
+        return START_NOT_STICKY
     }
 
     private fun startWakeMode() {
-        if (Build.VERSION.SDK_INT >= 34 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             stopSelf()
             return
         }
@@ -65,7 +66,7 @@ class JarvisVoiceForegroundService : Service() {
                 onWakeWord = {
                     val detected = Intent(ACTION_WAKE_DETECTED).setPackage(packageName)
                     sendBroadcast(detected)
-                    updateNotification("Wake word detected — open JARVIS to continue")
+                    updateNotification("Wake word detected — JARVIS is ready")
                 },
                 onError = { message -> updateNotification(message) }
             )
