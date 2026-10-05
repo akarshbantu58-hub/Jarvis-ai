@@ -24,6 +24,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:resizeableActivity="true"
         android:theme="@style/Theme.JarvisAI">
 
         <activity android:name=".MainActivity" android:exported="true">
@@ -70,6 +71,19 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/jarvis_accessibility_service" />
+        </service>
+
+        <service
+            android:name=".JarvisNotificationListenerService"
+            android:exported="false"
+            android:label="JARVIS notification access"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="conversations|alerting" />
         </service>
 
         <service android:name=".JarvisOverlayService" android:exported="false" />
