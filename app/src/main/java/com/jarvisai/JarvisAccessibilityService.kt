@@ -4,8 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.os.Bundle
-import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * Optional user-enabled automation bridge.
@@ -72,6 +72,9 @@ class JarvisAccessibilityService : AccessibilityService() {
         val stroke = GestureDescription.StrokeDescription(path, 0L, durationMs.coerceIn(50L, 2000L))
         return dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
+
+    /** Returns the current foreground UI as clean data for the agent layer. */
+    fun snapshot(): UiNode? = ScreenParser.parse(rootInActiveWindow)
 
     private fun findScrollable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         if (node.isScrollable) return node
