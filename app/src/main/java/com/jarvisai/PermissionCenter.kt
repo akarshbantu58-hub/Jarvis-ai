@@ -70,7 +70,7 @@ object PermissionCenter {
     }
 
     fun openNotificationAccessSettings(context: Context) {
-        context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
     }
 
     fun openAppDetails(context: Context) {
