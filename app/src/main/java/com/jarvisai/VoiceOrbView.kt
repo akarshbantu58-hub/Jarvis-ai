@@ -1,0 +1,35 @@
+package com.jarvisai
+
+import android.animation.ValueAnimator
+import android.content.Context
+import android.graphics.*
+import android.util.AttributeSet
+import android.view.View
+import kotlin.math.cos
+import kotlin.math.sin
+
+class VoiceOrbView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var phase = 0f
+    private var level = 0.2f
+    private var listening = false
+    private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+        duration = 2200; repeatCount = ValueAnimator.INFINITE
+        addUpdateListener { phase = it.animatedValue as Float; invalidate() }
+    }
+    init { animator.start() }
+    fun setListening(value: Boolean) { listening = value; invalidate() }
+    fun setAudioLevel(value: Float) { level = value.coerceIn(0f, 1f); invalidate() }
+    override fun onDraw(c: Canvas) {
+        val cx=width/2f; val cy=height/2f; val r=minOf(width,height)*.24f
+        val pulse=1f+(if(listening).09f else .035f)*((sin(phase*Math.PI*2)+1)/2).toFloat()
+        val rr=r*pulse
+        glow.maskFilter=BlurMaskFilter(r*.55f,BlurMaskFilter.Blur.NORMAL); glow.color=Color.argb(if(listening)110 else 65,70,190,255); c.drawCircle(cx,cy,rr*1.35f,glow)
+        for(i in 0 until 3){ paint.style=Paint.Style.STROKE; paint.strokeWidth=if(listening)3f else 2f; paint.color=Color.argb(80-i*18,80,210,255); c.drawCircle(cx,cy,rr*(1.35f+i*.25f),paint) }
+        paint.shader=RadialGradient(cx-rr*.25f,cy-rr*.25f,rr*1.2f,intArrayOf(Color.WHITE,Color.rgb(120,225,255),Color.rgb(15,80,140),Color.rgb(3,12,24)),floatArrayOf(0f,.22f,.62f,1f),Shader.TileMode.CLAMP); paint.style=Paint.Style.FILL; c.drawCircle(cx,cy,rr,paint); paint.shader=null
+        paint.style=Paint.Style.STROKE; paint.strokeWidth=2.5f; paint.color=Color.argb(210,190,245,255); c.drawCircle(cx,cy,rr,paint)
+        if(listening) for(i in 0 until 24){ val a=i*Math.PI*2/24; val amp=8+level*25+(sin(phase*Math.PI*4+i)+1)*3; paint.strokeWidth=2f; paint.color=Color.argb(155,100,225,255); c.drawLine(cx+cos(a).toFloat()*(rr+10),cy+sin(a).toFloat()*(rr+10),cx+cos(a).toFloat()*(rr+10+amp),cy+sin(a).toFloat()*(rr+10+amp),paint) }
+    }
+    override fun onDetachedFromWindow(){animator.cancel();super.onDetachedFromWindow()}
+}
