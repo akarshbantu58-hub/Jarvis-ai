@@ -9,12 +9,11 @@ on:
 permissions:
   contents: read
 
-# Do not cancel an active Android build when another commit arrives. This is
-# important while validating the APK pipeline because cancellation can make a
-# healthy build look like a Gradle/lint failure.
+# Keep CI focused on the newest commit. Once a repair/build starts, a newer
+# commit supersedes it; this prevents a long queue of obsolete APK builds.
 concurrency:
   group: jarvis-android-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-android:
