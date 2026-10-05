@@ -18,19 +18,24 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         serviceInfo = serviceInfo.apply {
             flags = flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
         }
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
+        if (instance === this) instance = null
         return super.onUnbind(intent)
     }
 
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
+    }
+
     fun performBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
-
     fun performHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
-
     fun performRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
 
     fun clickText(text: String): Boolean {
@@ -85,5 +90,11 @@ class JarvisAccessibilityService : AccessibilityService() {
             current = current?.parent
         }
         return null
+    }
+
+    companion object {
+        @Volatile
+        var instance: JarvisAccessibilityService? = null
+            private set
     }
 }
