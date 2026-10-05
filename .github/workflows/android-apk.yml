@@ -9,9 +9,11 @@ on:
 permissions:
   contents: read
 
+# Never cancel an active Android build just because another commit was pushed.
+# This is especially important while we are stabilizing the build pipeline.
 concurrency:
   group: jarvis-android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-android:
@@ -54,8 +56,11 @@ jobs:
       - name: Validate Gradle project
         run: gradle --no-daemon projects --stacktrace
 
-      - name: Run Android lint and unit tests
-        run: gradle --no-daemon :app:lintDebug :app:testDebugUnitTest --stacktrace
+      - name: Run Android lint
+        run: gradle --no-daemon :app:lintDebug --stacktrace
+
+      - name: Run unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug --stacktrace
