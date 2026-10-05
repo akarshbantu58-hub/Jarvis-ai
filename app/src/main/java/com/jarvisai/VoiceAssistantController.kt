@@ -28,32 +28,15 @@ class VoiceAssistantController(
 
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val recognizer: SpeechRecognizer? = if (SpeechRecognizer.isRecognitionAvailable(appContext)) {
-        SpeechRecognizer.createSpeechRecognizer(appContext).also { it.setRecognitionListener(recognitionListener) }
-    } else {
-        null
-    }
     private var continuous = false
     private var stopping = false
 
     private val recognitionListener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {
-            listener.onListeningChanged(true)
-        }
-
-        override fun onBeginningOfSpeech() {
-            listener.onListeningChanged(true)
-        }
-
-        override fun onRmsChanged(rmsdB: Float) {
-            listener.onAudioLevel(((rmsdB - 1f) / 9f).coerceIn(0f, 1f))
-        }
-
+        override fun onReadyForSpeech(params: Bundle?) = listener.onListeningChanged(true)
+        override fun onBeginningOfSpeech() = listener.onListeningChanged(true)
+        override fun onRmsChanged(rmsdB: Float) = listener.onAudioLevel(((rmsdB - 1f) / 9f).coerceIn(0f, 1f))
         override fun onBufferReceived(buffer: ByteArray?) = Unit
-
-        override fun onEndOfSpeech() {
-            listener.onListeningChanged(false)
-        }
+        override fun onEndOfSpeech() = listener.onListeningChanged(false)
 
         override fun onError(error: Int) {
             listener.onListeningChanged(false)
@@ -82,6 +65,14 @@ class VoiceAssistantController(
         }
 
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
+    }
+
+    private val recognizer: SpeechRecognizer? = if (SpeechRecognizer.isRecognitionAvailable(appContext)) {
+        SpeechRecognizer.createSpeechRecognizer(appContext).also {
+            it.setRecognitionListener(recognitionListener)
+        }
+    } else {
+        null
     }
 
     fun isAvailable(): Boolean = recognizer != null
