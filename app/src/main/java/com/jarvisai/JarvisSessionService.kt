@@ -11,6 +11,7 @@ class JarvisSessionService : VoiceInteractionSessionService() {
 }
 
 class JarvisVoiceSession(service: JarvisSessionService) : VoiceInteractionSession(service) {
+    @Suppress("DEPRECATION")
     override fun onHandleAssist(
         data: Bundle?,
         structure: AssistStructure?,
