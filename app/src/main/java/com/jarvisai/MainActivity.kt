@@ -68,6 +68,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.logoImage.setImageResource(R.drawable.jarvis_logo)
         jarvis = JarvisCore(this)
         actions = AppActionEngine(this)
         voice = VoiceAssistantController(this, voiceListener)
