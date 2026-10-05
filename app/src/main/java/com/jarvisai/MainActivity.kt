@@ -2,7 +2,10 @@ package com.jarvisai
 
 import android.Manifest
 import android.app.role.RoleManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -12,6 +15,7 @@ import android.provider.Settings
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.jarvisai.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -24,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var voice: VoiceAssistantController
     private val handler = Handler(Looper.getMainLooper())
     private var continuousVoice = false
+    private var wakeWordEnabled = false
 
     private val clock = object : Runnable {
         override fun run() {
@@ -34,11 +39,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val wakeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != JarvisVoiceForegroundService.ACTION_WAKE_DETECTED) return
+            stopWakeWordService()
+            showResponse("Wake word detected. I'm listening.")
+            startListening()
+        }
+    }
+
     private val assistantRoleLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { updateAssistantCard() }
 
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) beginVoice() else showResponse("Microphone permission denied.")
+    }
+
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted || android.os.Build.VERSION.SDK_INT < 33) startWakeWordService()
+        else showResponse("Notification permission is needed to show the active wake-word service status.")
     }
 
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -60,6 +79,10 @@ class MainActivity : AppCompatActivity() {
             continuousVoice = !continuousVoice
             binding.voiceModeButton.text = if (continuousVoice) "LIVE" else "PUSH"
             showResponse(if (continuousVoice) "Continuous conversation enabled." else "Push-to-talk mode enabled.")
+        }
+        binding.voiceModeButton.setOnLongClickListener {
+            toggleWakeWord()
+            true
         }
         binding.sendButton.setOnClickListener { processCommand(binding.commandInput.text?.toString().orEmpty()) }
         binding.devCard.setOnClickListener { showResponse("DEV STUDIO foundation is ready; code execution remains sandboxed and will be added in the next stage.") }
@@ -110,17 +133,33 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        ContextCompat.registerReceiver(
+            this,
+            wakeReceiver,
+            IntentFilter(JarvisVoiceForegroundService.ACTION_WAKE_DETECTED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
     override fun onResume() {
         super.onResume()
         if (::binding.isInitialized) {
             binding.motionBubbles.start()
             updateAssistantCard()
+            if (wakeWordEnabled) binding.voiceModeButton.text = "WAKE ON"
         }
     }
 
     override fun onPause() {
         if (::binding.isInitialized) binding.motionBubbles.stop()
         super.onPause()
+    }
+
+    override fun onStop() {
+        runCatching { unregisterReceiver(wakeReceiver) }
+        super.onStop()
     }
 
     private fun updateAssistantCard() {
@@ -167,6 +206,51 @@ class MainActivity : AppCompatActivity() {
     private fun beginVoice() {
         binding.orbStateText.text = "LISTENING"
         voice.start(continuousMode = continuousVoice, preferOffline = false)
+    }
+
+    private fun toggleWakeWord() {
+        if (wakeWordEnabled) {
+            stopWakeWordService()
+            wakeWordEnabled = false
+            binding.voiceModeButton.text = if (continuousVoice) "LIVE" else "PUSH"
+            showResponse("Wake-word mode disabled.")
+            return
+        }
+
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+            showResponse("Grant microphone permission, then long-press the voice mode button again to enable Hey JARVIS.")
+            return
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+
+        startWakeWordService()
+    }
+
+    private fun startWakeWordService() {
+        val intent = Intent(this, JarvisVoiceForegroundService::class.java)
+            .setAction(JarvisVoiceForegroundService.ACTION_START_WAKE)
+        runCatching {
+            ContextCompat.startForegroundService(this, intent)
+            wakeWordEnabled = true
+            binding.voiceModeButton.text = "WAKE ON"
+            binding.orbStateText.text = "WAKE READY"
+            showResponse("Wake-word mode enabled. Say “Hey JARVIS”. Long-press again to stop it.")
+        }.onFailure {
+            wakeWordEnabled = false
+            showResponse("Unable to start wake-word service: ${it.message ?: "unknown error"}")
+        }
+    }
+
+    private fun stopWakeWordService() {
+        stopService(Intent(this, JarvisVoiceForegroundService::class.java))
+        wakeWordEnabled = false
     }
 
     private fun requestCamera() {
@@ -243,6 +327,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(clock)
+        stopWakeWordService()
         if (::binding.isInitialized) {
             binding.motionBubbles.stop()
             binding.voiceOrb.setListening(false)
