@@ -21,7 +21,12 @@ class GeminiProvider : AiProvider {
         val handler = Handler(Looper.getMainLooper())
         Thread {
             val result = runCatching {
-                val base = config.baseUrl.ifBlank { "https://generativelanguage.googleapis.com/v1beta" }.trimEnd('/')
+                val configuredBase = config.baseUrl.trimEnd('/')
+                val base = if (configuredBase.isBlank() || configuredBase.contains("api.openai.com")) {
+                    "https://generativelanguage.googleapis.com/v1beta"
+                } else {
+                    configuredBase
+                }
                 val endpoint = if (base.contains("{model}")) {
                     base.replace("{model}", config.model)
                 } else {
