@@ -36,6 +36,24 @@ object ApiHub {
         editor.apply()
     }
 
+    /**
+     * Saves a key using only local format detection. No network request is made
+     * and the key is never sent to a candidate provider just to identify it.
+     */
+    fun autoConfigure(context: Context, apiKey: String): ApiKeyAutoDetector.Detection? {
+        val detection = ApiKeyAutoDetector.detect(apiKey) ?: return null
+        save(
+            context,
+            Config(
+                provider = detection.provider,
+                baseUrl = detection.baseUrl,
+                apiKey = apiKey.trim(),
+                model = detection.model
+            )
+        )
+        return detection
+    }
+
     fun load(context: Context): Config {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return Config(
