@@ -1,8 +1,9 @@
-# Keep `local.properties` out of version control
+# Keep local Android/Gradle configuration and credentials out of version control
 local.properties
 
-# Gradle files
+# Gradle / Kotlin build state
 .gradle/
+.kotlin/
 **/build/
 
 # Android Studio / IntelliJ files
@@ -11,9 +12,14 @@ local.properties
 *.ipr
 *.iws
 
-# User-specific files
+# Signing credentials
 *.keystore
 *.jks
+
+# Local secret/config files
+.env
+.env.*
+*.secrets.properties
 
 # OS files
 .DS_Store
