@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
@@ -15,7 +16,11 @@ class JarvisOverlayService : Service() {
     private var view: TextView? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (Settings.canDrawOverlays(this)) showOverlay()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        runCatching { showOverlay() }.onFailure { stopSelf() }
         return START_NOT_STICKY
     }
 
@@ -29,10 +34,13 @@ class JarvisOverlayService : Service() {
             setPadding(28, 18, 28, 18)
             elevation = 16f
         }
-        val type = if (android.os.Build.VERSION.SDK_INT >= 26)
+        @Suppress("DEPRECATION")
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        else WindowManager.LayoutParams.TYPE_PHONE
-        val p = WindowManager.LayoutParams(
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
@@ -43,7 +51,7 @@ class JarvisOverlayService : Service() {
             y = 48
         }
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        wm?.addView(v, p)
+        wm?.addView(v, params)
         view = v
     }
 
