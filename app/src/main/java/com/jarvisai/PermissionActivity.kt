@@ -14,20 +14,94 @@ import androidx.appcompat.app.AppCompatActivity
 class PermissionActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh() }
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContentView(buildUi()); refresh() }
-    private fun buildUi() = LinearLayout(this).apply {
-        orientation=LinearLayout.VERTICAL; setPadding(32,40,32,32); setBackgroundColor(Color.rgb(5,8,13))
-        addView(TextView(this@PermissionActivity).apply { text="JARVIS PERMISSION CENTER"; textSize=26f; setTextColor(Color.WHITE) })
-        addView(TextView(this@PermissionActivity).apply { text="Permissions are requested only when required. Android controls all sensitive access."; textSize=15f; setTextColor(Color.LTGRAY); setPadding(0,18,0,24) })
-        status=TextView(this@PermissionActivity).apply { textSize=15f; setTextColor(Color.CYAN) }; addView(status)
-        addView(Button(this@PermissionActivity).apply { text="GRANT NEEDED PERMISSIONS"; setOnClickListener { PermissionCenter.requestMissing(permissionLauncher,this@PermissionActivity) } })
-        addView(Button(this@PermissionActivity).apply { text="DISPLAY OVER OTHER APPS"; setOnClickListener { openOverlaySettings() } })
-        addView(Button(this@PermissionActivity).apply { text="MAKE JARVIS DEFAULT ASSISTANT"; setOnClickListener { PermissionCenter.requestAssistantRole(this@PermissionActivity,9001) } })
-        addView(Button(this@PermissionActivity).apply { text="OPEN ANDROID APP PERMISSIONS"; setOnClickListener { PermissionCenter.openAppDetails(this@PermissionActivity) } })
-        addView(Button(this@PermissionActivity).apply { text="API HUB"; setOnClickListener { startActivity(Intent(this@PermissionActivity,ApiHubActivity::class.java)) } })
-        addView(Button(this@PermissionActivity).apply { text="AUTOMATIONS"; setOnClickListener { startActivity(Intent(this@PermissionActivity,AutomationActivity::class.java)) } })
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(buildUi())
+        refresh()
     }
-    private fun openOverlaySettings() { if (Settings.canDrawOverlays(this)) { startService(Intent(this,JarvisOverlayService::class.java)); refresh() } else startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName"))) }
-    private fun refresh() { val missing=PermissionCenter.missingPermissions(this); val assistant=PermissionCenter.hasAssistantRole(this); val overlay=Settings.canDrawOverlays(this); status.text="Runtime: ${if(missing.isEmpty()) "READY" else "${missing.size} needed"}\nAssistant: ${if(assistant) "JARVIS" else "Not selected"}\nOverlay: ${if(overlay) "ENABLED" else "Not enabled"}" }
-    override fun onResume(){ super.onResume(); if(::status.isInitialized) refresh() }
+
+    private fun buildUi() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(32, 40, 32, 32)
+        setBackgroundColor(Color.rgb(5, 8, 13))
+
+        addView(TextView(this@PermissionActivity).apply {
+            text = "JARVIS PERMISSION CENTER"
+            textSize = 26f
+            setTextColor(Color.WHITE)
+        })
+        addView(TextView(this@PermissionActivity).apply {
+            text = "JARVIS only uses sensitive capabilities after Android grants them. Accessibility and notification access are optional system-level settings."
+            textSize = 15f
+            setTextColor(Color.LTGRAY)
+            setPadding(0, 18, 0, 24)
+        })
+        status = TextView(this@PermissionActivity).apply {
+            textSize = 15f
+            setTextColor(Color.CYAN)
+        }
+        addView(status)
+
+        addButton("GRANT CAMERA / MICROPHONE / NOTIFICATIONS") {
+            PermissionCenter.requestMissing(permissionLauncher, this@PermissionActivity)
+        }
+        addButton("ENABLE ACCESSIBILITY SERVICE") {
+            PermissionCenter.openAccessibilitySettings(this@PermissionActivity)
+        }
+        addButton("ENABLE NOTIFICATION ACCESS") {
+            PermissionCenter.openNotificationAccessSettings(this@PermissionActivity)
+        }
+        addButton("DISPLAY OVER OTHER APPS") {
+            if (Settings.canDrawOverlays(this@PermissionActivity)) {
+                startService(Intent(this@PermissionActivity, JarvisOverlayService::class.java))
+            } else {
+                PermissionCenter.openOverlaySettings(this@PermissionActivity)
+            }
+        }
+        addButton("MAKE JARVIS DEFAULT ASSISTANT") {
+            PermissionCenter.requestAssistantRole(this@PermissionActivity, 9001)
+        }
+        addButton("OPEN ANDROID APP PERMISSIONS") {
+            PermissionCenter.openAppDetails(this@PermissionActivity)
+        }
+        addButton("API HUB") {
+            startActivity(Intent(this@PermissionActivity, ApiHubActivity::class.java))
+        }
+        addButton("AUTOMATIONS") {
+            startActivity(Intent(this@PermissionActivity, AutomationActivity::class.java))
+        }
+    }
+
+    private fun LinearLayout.addButton(label: String, action: () -> Unit) {
+        addView(Button(this@PermissionActivity).apply {
+            text = label
+            setOnClickListener { action() }
+        })
+    }
+
+    private fun refresh() {
+        val missing = PermissionCenter.missingPermissions(this)
+        val assistant = PermissionCenter.hasAssistantRole(this)
+        val accessibility = PermissionCenter.isAccessibilityEnabled(this)
+        val notifications = PermissionCenter.isNotificationAccessEnabled(this)
+        val overlay = Settings.canDrawOverlays(this)
+        status.text = buildString {
+            append("Runtime permissions: ")
+            append(if (missing.isEmpty()) "READY" else "${missing.size} needed")
+            append("\nDefault assistant: ")
+            append(if (assistant) "JARVIS OS" else "Not selected")
+            append("\nAccessibility: ")
+            append(if (accessibility) "ENABLED" else "Not enabled")
+            append("\nNotification access: ")
+            append(if (notifications) "ENABLED" else "Not enabled")
+            append("\nOverlay: ")
+            append(if (overlay) "ENABLED" else "Not enabled")
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::status.isInitialized) refresh()
+    }
 }
