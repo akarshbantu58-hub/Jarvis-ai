@@ -11,17 +11,17 @@ class JarvisSessionService : VoiceInteractionSessionService() {
     override fun onNewSession(args: Bundle?): VoiceInteractionSession = JarvisVoiceSession(this)
 }
 
-class JarvisVoiceSession(service: JarvisSessionService) : VoiceInteractionSession(service) {
+class JarvisVoiceSession(private val sessionService: JarvisSessionService) : VoiceInteractionSession(sessionService) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         // Android has explicitly invoked JARVIS as the assistant. Bring the
         // normal assistant UI forward; Android still controls invocation.
-        val intent = Intent(service, MainActivity::class.java).apply {
+        val intent = Intent(sessionService, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
-        service.startActivity(intent)
+        sessionService.startActivity(intent)
     }
 
     @Suppress("DEPRECATION")
