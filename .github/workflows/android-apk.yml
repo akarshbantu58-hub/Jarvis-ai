@@ -1,0 +1,81 @@
+name: JARVIS OS - Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    name: Validate and build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Show build environment
+        run: |
+          java -version
+          gradle --version
+          sdkmanager --list_installed | grep -E 'platforms;android-36|build-tools;36.0.0' || true
+
+      - name: Validate Android project
+        run: gradle --no-daemon :app:lintDebug :app:testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug --stacktrace
+
+      - name: Build unsigned release APK
+        run: gradle --no-daemon :app:assembleRelease --stacktrace
+
+      - name: Prepare predictable APK names
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/JARVIS-OS-debug.apk
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp app/build/outputs/apk/release/app-release-unsigned.apk dist/JARVIS-OS-release-unsigned.apk
+          elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk dist/JARVIS-OS-release.apk
+          else
+            echo "ERROR: No release APK was produced." >&2
+            exit 1
+          fi
+          ls -lh dist/*.apk
+
+      - name: Upload Android APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-OS-Android-APKs
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 14
