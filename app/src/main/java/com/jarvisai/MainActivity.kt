@@ -2,7 +2,6 @@ package com.jarvisai
 
 import android.Manifest
 import android.app.role.RoleManager
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -193,6 +192,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
         binding.commandInput.setText(command)
+        val lower = command.lowercase(Locale.getDefault()).trim()
+        if (lower == "stop speaking" || lower == "be quiet" || lower == "stop") {
+            jarvis.stopSpeaking()
+            showResponse("Speech stopped.")
+            binding.orbStateText.text = "IDLE"
+            return
+        }
+
         val local = runCatching { actions.execute(command) }.getOrNull()
         if (local != null) {
             showResponse(local)
@@ -201,7 +208,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val lower = command.lowercase(Locale.getDefault())
         when {
             lower.contains("api hub") || lower.contains("api settings") ->
                 startActivity(Intent(this, ApiHubActivity::class.java))
