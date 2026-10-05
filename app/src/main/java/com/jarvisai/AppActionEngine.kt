@@ -19,8 +19,13 @@ class AppActionEngine(private val context: Context) {
                 "Opening Android settings."
             }
             c == "go home" || c == "go to home" -> {
-                launch(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
+                JarvisAccessibilityService.instance?.performHome()
+                    ?: launch(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
                 "Going home."
+            }
+            c == "go back" || c == "press back" -> {
+                if (JarvisAccessibilityService.instance?.performBack() == true) "Going back."
+                else "Back control requires JARVIS Accessibility Service to be enabled."
             }
             c.contains("open youtube") -> openPackageOrUrl("com.google.android.youtube", "YouTube", "https://www.youtube.com")
             c.contains("open chrome") -> openPackageOrUrl("com.android.chrome", "Chrome", "https://www.google.com")
@@ -41,6 +46,7 @@ class AppActionEngine(private val context: Context) {
             c.contains("battery") -> batteryStatus()
             c.contains("volume up") || c.contains("increase volume") -> adjustVolume(AudioManager.ADJUST_RAISE)
             c.contains("volume down") || c.contains("decrease volume") -> adjustVolume(AudioManager.ADJUST_LOWER)
+            c.contains("read my notifications") || c.contains("read notifications") -> readNotifications()
             c == "stop speaking" || c == "be quiet" -> "Speech stop is handled by the voice controller."
             else -> null
         }
@@ -100,5 +106,17 @@ class AppActionEngine(private val context: Context) {
             cameraManager.setTorchMode(cameraId, enabled)
             if (enabled) "Flashlight turned on." else "Flashlight turned off."
         }.getOrElse { "Android did not allow flashlight control." }
+    }
+
+    private fun readNotifications(): String {
+        if (!PermissionCenter.isNotificationAccessEnabled(context)) {
+            return "Notification access is disabled. Enable it in JARVIS Permission Center first."
+        }
+        val items = NotificationStore.snapshot()
+        if (items.isEmpty()) return "There are no recent notification summaries available."
+        return items.take(5).joinToString("\n") { item ->
+            val title = item.title.ifBlank { item.packageName }
+            if (item.text.isBlank()) title else "$title: ${item.text}"
+        }
     }
 }
