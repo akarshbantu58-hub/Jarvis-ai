@@ -22,7 +22,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var jarvis: JarvisCore
     private lateinit var actions: AppActionEngine
+    private lateinit var voice: VoiceAssistantController
     private val handler = Handler(Looper.getMainLooper())
+    private var continuousVoice = false
+
     private val clock = object : Runnable {
         override fun run() {
             if (::binding.isInitialized) {
@@ -34,13 +37,6 @@ class MainActivity : AppCompatActivity() {
 
     private val assistantRoleLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { updateAssistantCard() }
-
-    private val speechLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-            ?.let(::processCommand)
-            ?: run { binding.voiceOrb.setListening(false); binding.orbStateText.text = "ONLINE" }
-    }
 
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) beginVoice() else showResponse("Microphone permission denied.")
@@ -56,16 +52,22 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         jarvis = JarvisCore(this)
         actions = AppActionEngine(this)
+        voice = VoiceAssistantController(this, voiceListener)
 
         binding.statusText.text = "● SYSTEM ONLINE  •  JARVIS READY"
         binding.responseText.text = "JARVIS is ready. Ask a question or say a command."
         binding.listenButton.setOnClickListener { startListening() }
+        binding.voiceModeButton.setOnClickListener {
+            continuousVoice = !continuousVoice
+            binding.voiceModeButton.text = if (continuousVoice) "LIVE" else "PUSH"
+            showResponse(if (continuousVoice) "Continuous conversation enabled." else "Push-to-talk mode enabled.")
+        }
         binding.sendButton.setOnClickListener { processCommand(binding.commandInput.text?.toString().orEmpty()) }
-        binding.devCard.setOnClickListener { showResponse("DEV STUDIO is ready.") }
+        binding.devCard.setOnClickListener { showResponse("DEV STUDIO foundation is ready; code execution remains sandboxed and will be added in the next stage.") }
         binding.cameraCard.setOnClickListener { requestCamera() }
         binding.settingsCard.setOnClickListener { startActivity(Intent(this, PermissionActivity::class.java)) }
         binding.aiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
-        binding.personalCard.setOnClickListener { showResponse("Personalization is available in settings.") }
+        binding.personalCard.setOnClickListener { showResponse("Personalization foundation is available in the settings stage.") }
         binding.apiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
         binding.automationCard.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
         binding.dockVoice.setOnClickListener { startListening() }
@@ -77,12 +79,49 @@ class MainActivity : AppCompatActivity() {
         binding.voiceOrb.setOnClickListener { startListening() }
 
         handler.post(clock)
+        binding.motionBubbles.start()
         updateAssistantCard()
+    }
+
+    private val voiceListener = object : VoiceAssistantController.Listener {
+        override fun onListeningChanged(listening: Boolean) {
+            if (!::binding.isInitialized) return
+            binding.voiceOrb.setListening(listening)
+            binding.orbStateText.text = if (listening) "LISTENING" else "ONLINE"
+        }
+
+        override fun onPartialText(text: String) {
+            if (::binding.isInitialized) binding.commandInput.setText(text)
+        }
+
+        override fun onFinalText(text: String) {
+            if (::binding.isInitialized) processCommand(text)
+        }
+
+        override fun onAudioLevel(level: Float) {
+            if (::binding.isInitialized) binding.voiceOrb.setAudioLevel(level)
+        }
+
+        override fun onError(message: String) {
+            if (::binding.isInitialized) {
+                binding.voiceOrb.setListening(false)
+                binding.orbStateText.text = "ERROR"
+                showResponse(message)
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        if (::binding.isInitialized) updateAssistantCard()
+        if (::binding.isInitialized) {
+            binding.motionBubbles.start()
+            updateAssistantCard()
+        }
+    }
+
+    override fun onPause() {
+        if (::binding.isInitialized) binding.motionBubbles.stop()
+        super.onPause()
     }
 
     private fun updateAssistantCard() {
@@ -93,7 +132,7 @@ class MainActivity : AppCompatActivity() {
             "SET JARVIS AS DEFAULT ASSISTANT"
         }
         binding.defaultAssistantSubtitle.text = if (defaultAssistant) {
-            "Voice interaction is enabled by Android."
+            "Android has assigned JARVIS as the assistant."
         } else {
             "Tap to open Android's confirmation dialog."
         }
@@ -102,19 +141,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestDefaultAssistant() {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
-            showResponse("Android 10 or newer is required.")
+            showResponse("Android 10 or newer is required for the assistant role.")
             return
         }
         val roleManager = getSystemService(RoleManager::class.java)
         when {
             roleManager == null || !roleManager.isRoleAvailable(RoleManager.ROLE_ASSISTANT) ->
-                showResponse("Assistant role is unavailable on this device.")
+                showResponse("The Android assistant role is unavailable on this device.")
             roleManager.isRoleHeld(RoleManager.ROLE_ASSISTANT) -> updateAssistantCard()
             else -> assistantRoleLauncher.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT))
         }
     }
 
     private fun startListening() {
+        if (!voice.isAvailable()) {
+            showResponse("No compatible Android speech-recognition service is available.")
+            return
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             beginVoice()
         } else {
@@ -123,14 +166,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun beginVoice() {
-        binding.voiceOrb.setListening(true)
         binding.orbStateText.text = "LISTENING"
-        runCatching { speechLauncher.launch(jarvis.voiceIntent()) }
-            .onFailure {
-                binding.voiceOrb.setListening(false)
-                binding.orbStateText.text = "ERROR"
-                showResponse(if (it is ActivityNotFoundException) "No speech-recognition service is available." else "Unable to start voice input.")
-            }
+        voice.start(continuousMode = continuousVoice, preferOffline = false)
     }
 
     private fun requestCamera() {
@@ -148,6 +185,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun processCommand(command: String) {
+        voice.stop()
         binding.voiceOrb.setListening(false)
         binding.orbStateText.text = "THINKING"
         if (command.isBlank()) {
@@ -174,7 +212,7 @@ class MainActivity : AppCompatActivity() {
             lower.contains("default assistant") || lower.contains("make jarvis default") ->
                 requestDefaultAssistant()
             else -> {
-                showResponse("Thinking…")
+                binding.orbStateText.text = "THINKING"
                 ApiClient.ask(this, command) { response ->
                     showResponse(response)
                     jarvis.speak(response)
@@ -199,7 +237,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(clock)
-        if (::binding.isInitialized) binding.voiceOrb.setListening(false)
+        if (::binding.isInitialized) {
+            binding.motionBubbles.stop()
+            binding.voiceOrb.setListening(false)
+        }
+        if (::voice.isInitialized) voice.release()
         if (::jarvis.isInitialized) jarvis.release()
         super.onDestroy()
     }
