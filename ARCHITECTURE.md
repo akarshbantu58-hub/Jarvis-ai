@@ -1,40 +1,34 @@
 # JARVIS OS Architecture
 
-## Current implementation
+JARVIS OS uses a component-based Android architecture. The current app is intentionally kept on the existing Kotlin + Android Views stack so working functionality is preserved while the agent layer is expanded. A future Compose UI can sit above these same interfaces without rewriting the execution layer.
 
-JARVIS OS is a native Android/Kotlin application. The existing XML/View UI and working assistant components are intentionally preserved while the project is hardened in stages.
+## Agent data flow
 
-### Layers
+`WakeWordEngine -> VoiceAssistantController -> Agent/AppActionEngine -> AgentPlanner -> ActionStep -> GestureController / IntentDispatcher -> ActionStateVerifier -> TextToSpeechManager`
 
-- `MainActivity` — presentation/orchestration entry point
-- `JarvisCore` — speech recognition intent + Android Text-to-Speech lifecycle
-- `ApiHub` / `ApiClient` — configurable AI provider configuration and HTTP client
-- `AppActionEngine` — safe, explicit Android app-launch actions
-- `PermissionCenter` / `PermissionActivity` — runtime/special-access setup
-- `JarvisVoiceInteractionService` — Android default-assistant entry point
-- `JarvisSessionService` — assistant session implementation
-- `JarvisOverlayService` — optional user-enabled overlay
-- `Automation*` — scheduled user-defined automation
-- `VoiceOrbView` — animated assistant state visualization
+For screen-aware automation:
 
-## Migration strategy
+`JarvisAccessibilityService -> ScreenParser -> UiNode tree -> PromptTemplates -> AgentPlanner -> ActionStep`
 
-The repository does not currently use Jetpack Compose. A full rewrite would unnecessarily risk the existing assistant-role and voice functionality, so the first stage keeps the proven XML/View UI. Compose will be introduced incrementally for new screens and then used for the redesigned home/settings surfaces once CI is green.
+## Components
 
-## Feature boundaries
+- `UiNode.kt` — clean accessibility data model.
+- `ActionStep.kt` — discrete executable command model.
+- `ExecutionSession.kt` — current execution state.
+- `ScreenParser.kt` — converts AccessibilityNodeInfo into UiNode data.
+- `PromptTemplates.kt` — safety-oriented prompts for UI planning.
+- `AgentPlanner.kt` — deterministic local planner for common UI actions; cloud AI can be added behind this boundary.
+- `GestureController.kt` — executes only through the user-enabled Accessibility Service.
+- `ActionStateVerifier.kt` — reports execution success/failure.
+- `IntentDispatcher.kt` — system-level app/settings/URL intents.
+- `TextToSpeechManager.kt` — replaceable Android TTS boundary.
+- `JarvisAccessibilityService.kt` — explicit user-enabled UI automation bridge.
+- `JarvisOverlayService.kt` — optional floating JARVIS status UI after overlay permission.
 
-Each future capability must be isolated behind an interface/service boundary:
+## Security model
 
-- AI providers
-- Speech recognition / wake word
-- Text-to-speech
-- Command execution
-- Accessibility automation
-- Camera / vision
-- MediaProjection screen analysis
-- Notification access
-- Memory
-- Secure settings / secrets
-- Device controls
+JARVIS never enables Accessibility, notification access, overlay access, microphone, camera, or screen capture programmatically. Android Settings and runtime permission dialogs remain the authority. Consequential actions must pass the command-risk/confirmation layer before execution.
 
-Android permissions and special-access flows remain explicit and user-controlled.
+## Current reality
+
+The planner can execute deterministic actions such as Home, Back, Scroll, Click text, Type text, and Read screen. App launching and device actions continue through the existing Android intent/action layer. Wake-word detection remains a compatibility architecture using Android speech recognition with offline preference; it is not a claim of unrestricted always-on microphone access.
