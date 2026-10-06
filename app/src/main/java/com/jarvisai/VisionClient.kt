@@ -4,13 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import com.jarvisai.ai.AiProviderManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Base64
 
 /** One-shot Gemini vision request. Frames are never streamed continuously. */
 object VisionClient {
@@ -25,7 +25,7 @@ object VisionClient {
             val result = runCatching {
                 val stream = ByteArrayOutputStream()
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 82, stream)
-                val encoded = Base64.getEncoder().encodeToString(stream.toByteArray())
+                val encoded = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
                 val base = config.baseUrl.trimEnd('/').let {
                     if (it.isBlank() || it.contains("api.openai.com")) "https://generativelanguage.googleapis.com/v1beta" else it
                 }
