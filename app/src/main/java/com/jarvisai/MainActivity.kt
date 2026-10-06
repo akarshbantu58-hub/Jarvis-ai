@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var jarvis: JarvisCore
     private lateinit var actions: AppActionEngine
     private lateinit var voice: VoiceAssistantController
+    private val commandRouter = CommandRouter()
     private val handler = Handler(Looper.getMainLooper())
     private var continuousVoice = false
     private var wakeWordEnabled = false
@@ -181,23 +182,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun executeApprovedCommand(command: String) {
-        val lower = command.lowercase(Locale.getDefault()).trim()
         val local = runCatching { actions.execute(command) }.getOrNull()
         if (local != null) {
-            showResponse(local); MemoryStore.addConversation(this, "assistant", local); jarvis.speak(local); binding.orbStateText.text = "SPEAKING"; return
+            showResponse(local)
+            MemoryStore.addConversation(this, "assistant", local)
+            jarvis.speak(local)
+            binding.orbStateText.text = "SPEAKING"
+            return
         }
-        when {
-            lower.contains("api hub") || lower.contains("api settings") -> startActivity(Intent(this, ApiHubActivity::class.java))
-            lower.contains("permissions") -> startActivity(Intent(this, PermissionActivity::class.java))
-            lower.contains("automation") -> startActivity(Intent(this, AutomationActivity::class.java))
-            lower.contains("memory") -> startActivity(Intent(this, MemoryActivity::class.java))
-            lower.contains("developer studio") || lower.contains("dev studio") -> startActivity(Intent(this, DeveloperStudioActivity::class.java))
-            lower.contains("screen capture") || lower.contains("share screen") -> startActivity(Intent(this, ScreenCaptureActivity::class.java))
-            lower.contains("camera vision") || lower.contains("look at this") -> startActivity(Intent(this, CameraActivity::class.java))
-            lower.contains("system center") || lower.contains("feature center") -> startActivity(Intent(this, FeatureCenterActivity::class.java))
-            lower.contains("default assistant") || lower.contains("make jarvis default") -> requestDefaultAssistant()
-            else -> {
-                ApiClient.ask(this, command) { response ->
+
+        when (val route = commandRouter.route(command)) {
+            CommandRouter.Route.Empty -> binding.orbStateText.text = "ONLINE"
+            is CommandRouter.Route.Local -> {
+                showResponse("I couldn't execute that local action.")
+                binding.orbStateText.text = "ERROR"
+            }
+            is CommandRouter.Route.Navigation -> when (route.intent.type) {
+                JarvisIntent.Type.OPEN_API_HUB -> startActivity(Intent(this, ApiHubActivity::class.java))
+                JarvisIntent.Type.OPEN_SETTINGS -> startActivity(Intent(this, FeatureCenterActivity::class.java))
+                JarvisIntent.Type.OPEN_AUTOMATION -> startActivity(Intent(this, AutomationActivity::class.java))
+                JarvisIntent.Type.DEFAULT_ASSISTANT -> requestDefaultAssistant()
+                else -> Unit
+            }
+            is CommandRouter.Route.Ai -> {
+                ApiClient.ask(this, route.intent.rawCommand) { response ->
                     showResponse(response)
                     MemoryStore.addConversation(this, "assistant", response)
                     jarvis.speak(response)
