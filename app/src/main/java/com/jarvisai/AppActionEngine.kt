@@ -12,10 +12,7 @@ import android.provider.AlarmClock
 import android.provider.Settings
 import java.util.Locale
 
-/**
- * Deterministic Android action boundary. It delegates UI automation only to the
- * user-enabled AccessibilityService and never bypasses Android permissions.
- */
+/** Android action boundary using only user-authorized Android APIs. */
 class AppActionEngine(private val context: Context) {
     private val planner = AgentPlanner()
     private val gestures = GestureController()
@@ -45,7 +42,7 @@ class AppActionEngine(private val context: Context) {
             c.contains("bluetooth") -> bluetoothStatusOrSettings(c.contains("on") || c.contains("enable"))
             c.contains("do not disturb") -> dndSettings(c.contains("on") || c.contains("enable"))
             c.contains("network") || c.contains("internet connection") || c.contains("wifi status") -> networkStatus()
-            c.contains("set an alarm") || c.contains("set alarm") -> openAlarm(c)
+            c.contains("set an alarm") || c.contains("set alarm") -> openAlarm()
             c.contains("call ") || c.startsWith("dial ") -> dialNumber(extractAfter(c, if (c.startsWith("dial ")) "dial " else "call "))
             c.contains("send message") || c.contains("send sms") -> messageIntent(c)
             c.contains("read my notifications") || c.contains("read notifications") -> readNotifications()
@@ -70,7 +67,11 @@ class AppActionEngine(private val context: Context) {
                 ActionStep.Action.READ_SCREEN -> true
                 else -> false
             }
-            if (step.action == ActionStep.Action.READ_SCREEN) { results += readScreen(); session.advance(); continue }
+            if (step.action == ActionStep.Action.READ_SCREEN) {
+                results += readScreen()
+                session.advance()
+                continue
+            }
             results += verifier.verify(step, success)
             if (!success) { session.fail(); break }
             session.advance()
@@ -86,14 +87,11 @@ class AppActionEngine(private val context: Context) {
 
     private fun readNotifications(): String {
         val items = NotificationStore.snapshot()
-        if (items.isEmpty()) {
-            return "No recent notifications are available. Enable JARVIS notification access in Android settings if you want notification reading."
-        }
+        if (items.isEmpty()) return "No recent notifications are available. Enable JARVIS notification access in Android settings if you want notification reading."
         return buildString {
             append("Recent notifications:\n")
             items.take(10).forEachIndexed { index, item ->
-                append(index + 1)
-                append(". ")
+                append(index + 1).append(". ")
                 if (item.title.isNotBlank()) append(item.title) else append(item.packageName)
                 if (item.text.isNotBlank()) append(": ").append(item.text)
                 append('\n')
@@ -102,32 +100,22 @@ class AppActionEngine(private val context: Context) {
     }
 
     private fun launch(intent: Intent?) {
-        if (intent == null) return
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        val safeIntent = intent ?: return
+        safeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(safeIntent)
     }
 
     private fun openUrl(url: String) = launch(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
     private fun openPackageOrUrl(pkg: String, name: String, fallbackUrl: String): String {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-        return if (intent != null) {
-            launch(intent)
-            "Opening $name."
-        } else {
-            openUrl(fallbackUrl)
-            "Opening $name in the browser."
-        }
+        return if (intent != null) { launch(intent); "Opening $name." }
+        else { openUrl(fallbackUrl); "Opening $name in the browser." }
     }
 
     private fun launchPackage(pkg: String, name: String): String {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-        return if (intent != null) {
-            launch(intent)
-            "Opening $name."
-        } else {
-            "$name is not installed."
-        }
+        return if (intent != null) { launch(intent); "Opening $name." } else "$name is not installed."
     }
 
     private fun batteryStatus(): String {
@@ -168,8 +156,7 @@ class AppActionEngine(private val context: Context) {
 
     private fun networkStatus(): String {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return "Network information is unavailable."
-        val active = cm.activeNetwork
-        val caps = active?.let { cm.getNetworkCapabilities(it) }
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
         return when {
             caps == null -> "The tablet appears to be offline."
             caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "Connected to Wi-Fi."
@@ -178,9 +165,8 @@ class AppActionEngine(private val context: Context) {
         }
     }
 
-    private fun openAlarm(command: String): String {
-        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply { putExtra(AlarmClock.EXTRA_MESSAGE, "JARVIS alarm") }
-        launch(intent)
+    private fun openAlarm(): String {
+        launch(Intent(AlarmClock.ACTION_SET_ALARM).apply { putExtra(AlarmClock.EXTRA_MESSAGE, "JARVIS alarm") })
         return "Opening Android alarm setup."
     }
 
@@ -198,8 +184,4 @@ class AppActionEngine(private val context: Context) {
     }
 
     private fun extractAfter(value: String, marker: String): String = value.substringAfter(marker, "").trim()
-
-    companion object {
-        private fun unusedCamera(context: Context) = context.getSystemService(CameraManager::class.java)
-    }
 }
