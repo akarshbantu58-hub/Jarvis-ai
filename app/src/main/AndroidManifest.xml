@@ -43,7 +43,26 @@
         <activity android:name=".PermissionActivity" android:exported="false" />
         <activity android:name=".AutomationActivity" android:exported="false" />
         <activity android:name=".ApiHubActivity" android:exported="false" />
+        <activity android:name=".FeatureCenterActivity" android:exported="false" />
+        <activity android:name=".CameraActivity" android:exported="false" />
+        <activity android:name=".ScreenCaptureActivity" android:exported="false" />
+        <activity android:name=".MemoryActivity" android:exported="false" />
+        <activity android:name=".DeveloperStudioActivity" android:exported="false" />
+
         <receiver android:name=".AutomationReceiver" android:exported="false" />
+        <receiver
+            android:name=".JarvisDeviceAdminReceiver"
+            android:description="@string/device_admin_description"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/jarvis_device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".JarvisVoiceInteractionService"
