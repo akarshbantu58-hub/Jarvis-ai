@@ -1,6 +1,7 @@
 package com.jarvisai
 
 import android.Manifest
+import android.app.AlertDialog
 import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -17,6 +18,8 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.jarvisai.core.CommandPolicy
+import com.jarvisai.core.CommandRisk
 import com.jarvisai.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -49,21 +52,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val assistantRoleLauncher: ActivityResultLauncher<Intent> =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { updateAssistantCard() }
-
-    private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) beginVoice() else showResponse("Microphone permission denied.")
-    }
-
-    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted || android.os.Build.VERSION.SDK_INT < 33) startWakeWordService()
-        else showResponse("Notification permission is needed to show the active wake-word service status.")
-    }
-
-    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) launchCamera() else showResponse("Camera permission denied.")
-    }
+    private val assistantRoleLauncher: ActivityResultLauncher<Intent> = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { updateAssistantCard() }
+    private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) beginVoice() else showResponse("Microphone permission denied.") }
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted || android.os.Build.VERSION.SDK_INT < 33) startWakeWordService() else showResponse("Notification permission is needed to show the active wake-word service status.") }
+    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) launchCamera() else showResponse("Camera permission denied.") }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,53 +90,23 @@ class MainActivity : AppCompatActivity() {
         binding.dockHome.setOnClickListener { binding.contentScroll.smoothScrollTo(0, 0) }
         binding.defaultAssistantCard.setOnClickListener { requestDefaultAssistant() }
         binding.voiceOrb.setOnClickListener { startListening() }
-
         handler.post(clock)
         binding.motionBubbles.start()
         updateAssistantCard()
     }
 
     private val voiceListener = object : VoiceAssistantController.Listener {
-        override fun onListeningChanged(listening: Boolean) {
-            if (!::binding.isInitialized) return
-            binding.voiceOrb.setListening(listening)
-            binding.orbStateText.text = if (listening) "LISTENING" else "ONLINE"
-        }
+        override fun onListeningChanged(listening: Boolean) { if (!::binding.isInitialized) return; binding.voiceOrb.setListening(listening); binding.orbStateText.text = if (listening) "LISTENING" else "ONLINE" }
         override fun onPartialText(text: String) { if (::binding.isInitialized) binding.commandInput.setText(text) }
         override fun onFinalText(text: String) { if (::binding.isInitialized) processCommand(text) }
         override fun onAudioLevel(level: Float) { if (::binding.isInitialized) binding.voiceOrb.setAudioLevel(level) }
-        override fun onError(message: String) {
-            if (::binding.isInitialized) {
-                binding.voiceOrb.setListening(false)
-                binding.orbStateText.text = "ERROR"
-                showResponse(message)
-            }
-        }
+        override fun onError(message: String) { if (::binding.isInitialized) { binding.voiceOrb.setListening(false); binding.orbStateText.text = "ERROR"; showResponse(message) } }
     }
 
-    override fun onStart() {
-        super.onStart()
-        ContextCompat.registerReceiver(this, wakeReceiver, IntentFilter(JarvisVoiceForegroundService.ACTION_WAKE_DETECTED), ContextCompat.RECEIVER_NOT_EXPORTED)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (::binding.isInitialized) {
-            binding.motionBubbles.start()
-            updateAssistantCard()
-            if (wakeWordEnabled) binding.voiceModeButton.text = "WAKE ON"
-        }
-    }
-
-    override fun onPause() {
-        if (::binding.isInitialized) binding.motionBubbles.stop()
-        super.onPause()
-    }
-
-    override fun onStop() {
-        runCatching { unregisterReceiver(wakeReceiver) }
-        super.onStop()
-    }
+    override fun onStart() { super.onStart(); ContextCompat.registerReceiver(this, wakeReceiver, IntentFilter(JarvisVoiceForegroundService.ACTION_WAKE_DETECTED), ContextCompat.RECEIVER_NOT_EXPORTED) }
+    override fun onResume() { super.onResume(); if (::binding.isInitialized) { binding.motionBubbles.start(); updateAssistantCard(); if (wakeWordEnabled) binding.voiceModeButton.text = "WAKE ON" } }
+    override fun onPause() { if (::binding.isInitialized) binding.motionBubbles.stop(); super.onPause() }
+    override fun onStop() { runCatching { unregisterReceiver(wakeReceiver) }; super.onStop() }
 
     private fun updateAssistantCard() {
         val defaultAssistant = PermissionCenter.hasAssistantRole(this)
@@ -165,30 +127,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun startListening() {
         if (!voice.isAvailable()) { showResponse("No compatible Android speech-recognition service is available."); return }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) beginVoice()
-        else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) beginVoice() else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    private fun beginVoice() {
-        binding.orbStateText.text = "LISTENING"
-        voice.start(continuousMode = continuousVoice, preferOffline = false)
-    }
+    private fun beginVoice() { binding.orbStateText.text = "LISTENING"; voice.start(continuousMode = continuousVoice, preferOffline = false) }
 
     private fun toggleWakeWord() {
-        if (wakeWordEnabled) {
-            stopWakeWordService(); wakeWordEnabled = false
-            binding.voiceModeButton.text = if (continuousVoice) "LIVE" else "PUSH"
-            showResponse("Wake-word mode disabled.")
-            return
-        }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-            showResponse("Grant microphone permission, then long-press the voice mode button again to enable Hey JARVIS.")
-            return
-        }
-        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS); return
-        }
+        if (wakeWordEnabled) { stopWakeWordService(); wakeWordEnabled = false; binding.voiceModeButton.text = if (continuousVoice) "LIVE" else "PUSH"; showResponse("Wake-word mode disabled."); return }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { microphonePermission.launch(Manifest.permission.RECORD_AUDIO); showResponse("Grant microphone permission, then long-press the voice mode button again to enable Hey JARVIS."); return }
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS); return }
         startWakeWordService()
     }
 
@@ -204,12 +151,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopWakeWordService() { stopService(Intent(this, JarvisVoiceForegroundService::class.java)); wakeWordEnabled = false }
-
-    private fun requestCamera() {
-        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) launchCamera()
-        else cameraPermission.launch(Manifest.permission.CAMERA)
-    }
-
+    private fun requestCamera() { if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) launchCamera() else cameraPermission.launch(Manifest.permission.CAMERA) }
     private fun launchCamera() { runCatching { startActivity(Intent(MediaStore.ACTION_IMAGE_CAPTURE)) }.onFailure { showResponse("No compatible camera app is available.") } }
 
     private fun processCommand(command: String) {
@@ -218,9 +160,28 @@ class MainActivity : AppCompatActivity() {
         binding.commandInput.setText(command)
         MemoryStore.addConversation(this, "user", command)
         val lower = command.lowercase(Locale.getDefault()).trim()
-        if (lower == "stop speaking" || lower == "be quiet" || lower == "stop") {
-            jarvis.stopSpeaking(); showResponse("Speech stopped."); binding.orbStateText.text = "IDLE"; return
+        if (lower == "stop speaking" || lower == "be quiet" || lower == "stop") { jarvis.stopSpeaking(); showResponse("Speech stopped."); binding.orbStateText.text = "IDLE"; return }
+
+        val risk = CommandPolicy().classify(command)
+        if (risk == CommandRisk.DANGEROUS) {
+            showResponse("JARVIS blocked this dangerous command. Android does not permit JARVIS to bypass device security or perform destructive actions.")
+            binding.orbStateText.text = "BLOCKED"
+            return
         }
+        if (risk == CommandRisk.SENSITIVE) {
+            AlertDialog.Builder(this)
+                .setTitle("JARVIS confirmation")
+                .setMessage("This command may have an external or irreversible effect:\n\n$command\n\nContinue?")
+                .setNegativeButton("CANCEL") { _, _ -> binding.orbStateText.text = "IDLE" }
+                .setPositiveButton("CONTINUE") { _, _ -> executeApprovedCommand(command) }
+                .show()
+            return
+        }
+        executeApprovedCommand(command)
+    }
+
+    private fun executeApprovedCommand(command: String) {
+        val lower = command.lowercase(Locale.getDefault()).trim()
         val local = runCatching { actions.execute(command) }.getOrNull()
         if (local != null) {
             showResponse(local); MemoryStore.addConversation(this, "assistant", local); jarvis.speak(local); binding.orbStateText.text = "SPEAKING"; return
