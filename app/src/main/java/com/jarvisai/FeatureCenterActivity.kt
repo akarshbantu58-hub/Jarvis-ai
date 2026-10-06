@@ -14,20 +14,14 @@ import androidx.appcompat.app.AppCompatActivity
 class FeatureCenterActivity : AppCompatActivity() {
     private lateinit var modeText: TextView
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(buildUi())
-    }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContentView(buildUi()) }
 
     private fun buildUi() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(28, 40, 28, 32)
         setBackgroundColor(Color.rgb(4, 8, 14))
         addView(TextView(this@FeatureCenterActivity).apply { text = "JARVIS OS • SYSTEM CENTER"; textSize = 26f; setTextColor(Color.CYAN); gravity = Gravity.CENTER_HORIZONTAL })
-        addView(TextView(this@FeatureCenterActivity).apply {
-            text = "Advanced capabilities are opt-in. Android permission dialogs and system settings remain authoritative."
-            textSize = 14f; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 18)
-        })
+        addView(TextView(this@FeatureCenterActivity).apply { text = "Advanced capabilities are opt-in. Android permission dialogs and system settings remain authoritative."; textSize = 14f; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 18) })
         modeText = TextView(this@FeatureCenterActivity).apply { setTextColor(Color.CYAN); textSize = 15f }
         addView(modeText)
         addButton("BATTERY SAVER MODE") { RuntimeSettings.setMode(this@FeatureCenterActivity, RuntimeSettings.Mode.SAVER); refreshMode() }
@@ -35,6 +29,7 @@ class FeatureCenterActivity : AppCompatActivity() {
         addButton("PERFORMANCE MODE") { RuntimeSettings.setMode(this@FeatureCenterActivity, RuntimeSettings.Mode.PERFORMANCE); refreshMode() }
         addButton("TOGGLE REDUCED MOTION") { RuntimeSettings.setReduceMotion(this@FeatureCenterActivity, !RuntimeSettings.reduceMotion(this@FeatureCenterActivity)); refreshMode() }
         addButton("TOGGLE MOTION BUBBLES") { RuntimeSettings.setBubbles(this@FeatureCenterActivity, !RuntimeSettings.bubbles(this@FeatureCenterActivity)); refreshMode() }
+        addButton("VOICE / ELEVENLABS") { startActivity(Intent(this@FeatureCenterActivity, VoiceSettingsActivity::class.java)) }
         addButton("CAMERA • CAPTURE + AI VISION") { startActivity(Intent(this@FeatureCenterActivity, CameraActivity::class.java)) }
         addButton("SCREEN CAPTURE • MEDIAPROJECTION") { startActivity(Intent(this@FeatureCenterActivity, ScreenCaptureActivity::class.java)) }
         addButton("MEMORY • VIEW / EDIT / DELETE") { startActivity(Intent(this@FeatureCenterActivity, MemoryActivity::class.java)) }
@@ -50,12 +45,6 @@ class FeatureCenterActivity : AppCompatActivity() {
         refreshMode()
     }
 
-    private fun refreshMode() {
-        if (!::modeText.isInitialized) return
-        modeText.text = "MODE: ${RuntimeSettings.mode(this)} • REDUCED MOTION: ${RuntimeSettings.reduceMotion(this)} • BUBBLES: ${RuntimeSettings.bubbles(this)}"
-    }
-
-    private fun LinearLayout.addButton(label: String, action: () -> Unit) {
-        addView(Button(this@FeatureCenterActivity).apply { text = label; setOnClickListener { action() } })
-    }
+    private fun refreshMode() { if (::modeText.isInitialized) modeText.text = "MODE: ${RuntimeSettings.mode(this)} • REDUCED MOTION: ${RuntimeSettings.reduceMotion(this)} • BUBBLES: ${RuntimeSettings.bubbles(this)}" }
+    private fun LinearLayout.addButton(label: String, action: () -> Unit) { addView(Button(this@FeatureCenterActivity).apply { text = label; setOnClickListener { action() } }) }
 }
