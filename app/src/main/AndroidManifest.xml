@@ -1,9 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Optional hardware: JARVIS can operate without camera/microphone on devices that lack them. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -11,7 +9,6 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-
     <queries>
         <package android:name="com.google.android.youtube" />
         <package android:name="com.android.chrome" />
@@ -19,27 +16,11 @@
         <package android:name="com.instagram.android" />
         <package android:name="com.google.android.apps.maps" />
     </queries>
-
-    <application
-        android:allowBackup="true"
-        android:icon="@drawable/jarvis_logo"
-        android:label="@string/app_name"
-        android:roundIcon="@drawable/jarvis_logo"
-        android:supportsRtl="true"
-        android:resizeableActivity="true"
-        android:theme="@style/Theme.JarvisAI">
-
+    <application android:allowBackup="true" android:icon="@drawable/jarvis_logo" android:label="@string/app_name" android:roundIcon="@drawable/jarvis_logo" android:supportsRtl="true" android:resizeableActivity="true" android:theme="@style/Theme.JarvisAI">
         <activity android:name=".MainActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.ASSIST" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+            <intent-filter><action android:name="android.intent.action.ASSIST" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
         </activity>
-
         <activity android:name=".PermissionActivity" android:exported="false" />
         <activity android:name=".AutomationActivity" android:exported="false" />
         <activity android:name=".ApiHubActivity" android:exported="false" />
@@ -48,71 +29,26 @@
         <activity android:name=".ScreenCaptureActivity" android:exported="false" />
         <activity android:name=".MemoryActivity" android:exported="false" />
         <activity android:name=".DeveloperStudioActivity" android:exported="false" />
-
+        <activity android:name=".VoiceSettingsActivity" android:exported="false" />
         <receiver android:name=".AutomationReceiver" android:exported="false" />
-        <receiver
-            android:name=".JarvisDeviceAdminReceiver"
-            android:description="@string/device_admin_description"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_DEVICE_ADMIN">
-            <meta-data
-                android:name="android.app.device_admin"
-                android:resource="@xml/jarvis_device_admin" />
-            <intent-filter>
-                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-            </intent-filter>
+        <receiver android:name=".JarvisDeviceAdminReceiver" android:description="@string/device_admin_description" android:exported="true" android:label="@string/app_name" android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/jarvis_device_admin" />
+            <intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED" /></intent-filter>
         </receiver>
-
-        <service
-            android:name=".JarvisVoiceInteractionService"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_VOICE_INTERACTION">
-            <intent-filter>
-                <action android:name="android.service.voice.VoiceInteractionService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.voice_interaction"
-                android:resource="@xml/voice_interaction_service" />
+        <service android:name=".JarvisVoiceInteractionService" android:exported="true" android:label="@string/app_name" android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/voice_interaction_service" />
         </service>
-
-        <service
-            android:name=".JarvisSessionService"
-            android:exported="true"
-            android:permission="android.permission.BIND_VOICE_INTERACTION" />
-
-        <service
-            android:name=".JarvisAccessibilityService"
-            android:exported="false"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/jarvis_accessibility_service" />
+        <service android:name=".JarvisSessionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <service android:name=".JarvisAccessibilityService" android:exported="false" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/jarvis_accessibility_service" />
         </service>
-
-        <service
-            android:name=".JarvisNotificationListenerService"
-            android:exported="false"
-            android:label="JARVIS notification access"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.service.notification.default_filter_types"
-                android:value="conversations|alerting" />
+        <service android:name=".JarvisNotificationListenerService" android:exported="false" android:label="JARVIS notification access" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+            <meta-data android:name="android.service.notification.default_filter_types" android:value="conversations|alerting" />
         </service>
-
-        <service
-            android:name=".JarvisVoiceForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="microphone"
-            android:stopWithTask="false" />
-
+        <service android:name=".JarvisVoiceForegroundService" android:exported="false" android:foregroundServiceType="microphone" android:stopWithTask="false" />
         <service android:name=".JarvisOverlayService" android:exported="false" />
     </application>
 </manifest>
