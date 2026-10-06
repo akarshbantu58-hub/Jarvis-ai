@@ -8,25 +8,56 @@ import android.view.View
 import kotlin.math.cos
 import kotlin.math.sin
 
-class VoiceOrbView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
+/**
+ * Hardware-safe JARVIS orb renderer.
+ *
+ * The glow uses BlurMaskFilter, so this view deliberately renders through a
+ * software layer. That keeps the animation deterministic across Samsung tablet
+ * GPU/driver combinations while leaving the rest of the application hardware
+ * accelerated.
+ */
+class VoiceOrbView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : View(context, attrs) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
     private var phase = 0f
     private var level = 0.2f
     private var listening = false
+
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = 2200L
         repeatCount = ValueAnimator.INFINITE
-        addUpdateListener { phase = it.animatedValue as Float; invalidate() }
+        addUpdateListener {
+            phase = (it.animatedValue as? Float) ?: 0f
+            if (isAttachedToWindow) invalidate()
+        }
     }
 
-    init { animator.start() }
+    init {
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
 
-    fun setListening(value: Boolean) { listening = value; invalidate() }
-    fun setAudioLevel(value: Float) { level = value.coerceIn(0f, 1f); invalidate() }
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (!animator.isStarted) animator.start()
+    }
+
+    fun setListening(value: Boolean) {
+        listening = value
+        invalidate()
+    }
+
+    fun setAudioLevel(value: Float) {
+        level = value.coerceIn(0f, 1f)
+        invalidate()
+    }
 
     override fun onDraw(c: Canvas) {
         super.onDraw(c)
+        if (width <= 0 || height <= 0) return
+
         val cx = width / 2f
         val cy = height / 2f
         val r = minOf(width, height) * 0.24f
@@ -46,9 +77,17 @@ class VoiceOrbView @JvmOverloads constructor(context: Context, attrs: AttributeS
         }
 
         paint.shader = RadialGradient(
-            cx - rr * 0.25f, cy - rr * 0.25f, rr * 1.2f,
-            intArrayOf(Color.WHITE, Color.rgb(120, 225, 255), Color.rgb(15, 80, 140), Color.rgb(3, 12, 24)),
-            floatArrayOf(0f, 0.22f, 0.62f, 1f), Shader.TileMode.CLAMP
+            cx - rr * 0.25f,
+            cy - rr * 0.25f,
+            rr * 1.2f,
+            intArrayOf(
+                Color.WHITE,
+                Color.rgb(120, 225, 255),
+                Color.rgb(15, 80, 140),
+                Color.rgb(3, 12, 24)
+            ),
+            floatArrayOf(0f, 0.22f, 0.62f, 1f),
+            Shader.TileMode.CLAMP
         )
         paint.style = Paint.Style.FILL
         c.drawCircle(cx, cy, rr, paint)
