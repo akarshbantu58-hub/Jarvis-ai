@@ -22,7 +22,6 @@ class AppActionEngine(private val context: Context) {
         val c = command.lowercase(Locale.getDefault()).trim()
         val planned = planner.plan(command)
         if (planned.isNotEmpty()) return executePlan(planned)
-
         return when {
             c == "open settings" || c == "open android settings" -> { launch(Intent(Settings.ACTION_SETTINGS)); "Opening Android settings." }
             c == "go home" || c == "go to home" -> if (gestures.home()) "Going home." else { launch(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)); "Going home." }
@@ -119,8 +118,8 @@ class AppActionEngine(private val context: Context) {
     }
 
     private fun batteryStatus(): String {
-        val battery = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-            ?: return "Battery information is unavailable.")
+        val battery = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?: return "Battery information is unavailable."
         val level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
         val scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
         if (level < 0 || scale <= 0) return "Battery information is unavailable."
