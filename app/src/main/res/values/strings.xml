@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">JARVIS OS</string>
     <string name="accessibility_service_description">Optional JARVIS automation service. It can inspect accessible UI labels and perform user-requested clicks, scrolling, text entry and gestures after you explicitly enable the service in Android Settings.</string>
+    <string name="device_admin_description">Optional JARVIS device administrator integration. No destructive administrator policies are requested; enable only for supported device-management hooks.</string>
 </resources>
