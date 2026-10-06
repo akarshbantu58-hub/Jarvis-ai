@@ -84,19 +84,45 @@ class AppActionEngine(private val context: Context) {
         return if (summary.isBlank()) "The current screen has no readable accessibility text." else summary
     }
 
+    private fun readNotifications(): String {
+        val items = NotificationStore.snapshot()
+        if (items.isEmpty()) {
+            return "No recent notifications are available. Enable JARVIS notification access in Android settings if you want notification reading."
+        }
+        return buildString {
+            append("Recent notifications:\n")
+            items.take(10).forEachIndexed { index, item ->
+                append(index + 1)
+                append(". ")
+                if (item.title.isNotBlank()) append(item.title) else append(item.packageName)
+                if (item.text.isNotBlank()) append(": ").append(item.text)
+                append('\n')
+            }
+        }.trim()
+    }
+
     private fun launch(intent: Intent) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(intent) }
     private fun openUrl(url: String) = launch(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
     private fun openPackageOrUrl(pkg: String, name: String, fallbackUrl: String): String {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-        if (intent != null) { launch(intent); return "Opening $name." }
-        openUrl(fallbackUrl); return "Opening $name in the browser."
+        return if (intent != null) {
+            launch(intent)
+            "Opening $name."
+        } else {
+            openUrl(fallbackUrl)
+            "Opening $name in the browser."
+        }
     }
 
     private fun launchPackage(pkg: String, name: String): String {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-        if (intent != null) { launch(intent); return "Opening $name." }
-        return "$name is not installed."
+        return if (intent != null) {
+            launch(intent)
+            "Opening $name."
+        } else {
+            "$name is not installed."
+        }
     }
 
     private fun batteryStatus(): String {
