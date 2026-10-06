@@ -19,9 +19,9 @@ class MotionBubbleView @JvmOverloads constructor(
 ) : View(context, attrs), SensorEventListener {
     private data class Bubble(var x: Float, var y: Float, var vx: Float, var vy: Float, val radius: Float, val phase: Float)
 
-    private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    private val accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val gyroscope = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bubbles = MutableList(18) { index ->
         Bubble(
@@ -64,15 +64,17 @@ class MotionBubbleView @JvmOverloads constructor(
         if (running) return
         running = true
         lastFrameNs = 0L
-        accelerometer?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
-        gyroscope?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        sensorManager?.let { manager ->
+            accelerometer?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+            gyroscope?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        }
         postInvalidateOnAnimation()
     }
 
     fun stop() {
         if (!running) return
         running = false
-        sensorManager.unregisterListener(this)
+        sensorManager?.unregisterListener(this)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
