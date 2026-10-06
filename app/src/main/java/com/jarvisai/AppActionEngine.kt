@@ -101,7 +101,12 @@ class AppActionEngine(private val context: Context) {
         }.trim()
     }
 
-    private fun launch(intent: Intent) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(intent) }
+    private fun launch(intent: Intent?) {
+        if (intent == null) return
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
     private fun openUrl(url: String) = launch(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
     private fun openPackageOrUrl(pkg: String, name: String, fallbackUrl: String): String {
