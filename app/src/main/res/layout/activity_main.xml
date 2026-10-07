@@ -48,7 +48,7 @@
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="64dp" android:layout_marginTop="16dp" android:background="@drawable/glass_input" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="7dp">
                 <EditText android:id="@+id/commandInput" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" android:hint="Ask JARVIS anything..." android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:singleLine="true" />
-                <ImageButton android:id="@+id/listenButton" android:layout_width="50dp" android:layout_height="50dp" android:background="@drawable/glass_button" android:contentDescription="Voice input" android:src="@android:drawable/ic_btn_speak_now" />
+                <ImageButton android:id="@+id/listenButton" android:layout_width="50dp" android:layout_height="50dp" android:background="@drawable/glass_button" android:contentDescription="Voice input" android:src="@drawable/ic_mic" />
                 <Button android:id="@+id/voiceModeButton" android:layout_width="58dp" android:layout_height="50dp" android:layout_marginStart="6dp" android:text="PUSH" android:textSize="9sp" />
                 <Button android:id="@+id/sendButton" android:layout_width="62dp" android:layout_height="50dp" android:layout_marginStart="6dp" android:text="SEND" android:textSize="9sp" />
             </LinearLayout>
