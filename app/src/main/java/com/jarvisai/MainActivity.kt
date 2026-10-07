@@ -8,6 +8,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.view.Gravity
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -84,42 +89,83 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Layout inflation is kept as the first operation so the UI remains
-        // available even when an optional subsystem is unavailable.
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        binding.logoImage.setImageResource(R.drawable.jarvis_logo)
+        // Startup is deliberately guarded. If a device-specific view/theme/resource
+        // fails during inflation, JARVIS stays launchable and shows a diagnostic
+        // screen instead of Android reporting "the app has a bug".
+        try {
+            binding = ActivityMainBinding.inflate(layoutInflater)
+            setContentView(binding.root)
+            binding.logoImage.setImageResource(R.drawable.jarvis_logo)
 
-        binding.statusText.text = "● SYSTEM ONLINE  •  JARVIS READY"
-        binding.responseText.text = "JARVIS is ready. Ask a question or say a command."
+            binding.statusText.text = "● SYSTEM ONLINE  •  JARVIS READY"
+            binding.responseText.text = "JARVIS is ready. Ask a question or say a command."
 
-        binding.listenButton.setOnClickListener { startListening() }
-        binding.voiceModeButton.setOnClickListener {
-            continuousVoice = !continuousVoice
-            binding.voiceModeButton.text = if (continuousVoice) "LIVE" else "PUSH"
-            showResponse(if (continuousVoice) "Continuous conversation enabled." else "Push-to-talk mode enabled.")
+            binding.listenButton.setOnClickListener { startListening() }
+            binding.voiceModeButton.setOnClickListener {
+                continuousVoice = !continuousVoice
+                binding.voiceModeButton.text = if (continuousVoice) "LIVE" else "PUSH"
+                showResponse(if (continuousVoice) "Continuous conversation enabled." else "Push-to-talk mode enabled.")
+            }
+            binding.voiceModeButton.setOnLongClickListener { toggleWakeWord(); true }
+            binding.sendButton.setOnClickListener { processCommand(binding.commandInput.text?.toString().orEmpty()) }
+            binding.devCard.setOnClickListener { startActivity(Intent(this, DeveloperStudioActivity::class.java)) }
+            binding.cameraCard.setOnClickListener { startActivity(Intent(this, CameraActivity::class.java)) }
+            binding.settingsCard.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
+            binding.aiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
+            binding.personalCard.setOnClickListener { startActivity(Intent(this, MemoryActivity::class.java)) }
+            binding.apiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
+            binding.automationCard.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
+            binding.dockVoice.setOnClickListener { startListening() }
+            binding.dockAI.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
+            binding.dockApps.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
+            binding.dockSettings.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
+            binding.dockHome.setOnClickListener { binding.contentScroll.smoothScrollTo(0, 0) }
+            binding.defaultAssistantCard.setOnClickListener { requestDefaultAssistant() }
+            binding.voiceOrb.setOnClickListener { startListening() }
+
+            handler.post(clock)
+            runCatching { binding.motionBubbles.start() }
+                .onFailure { showResponse("Motion effects are unavailable on this device. JARVIS will continue without them.") }
+            updateAssistantCard()
+        } catch (e: Exception) {
+            showStartupFallback(e)
         }
-        binding.voiceModeButton.setOnLongClickListener { toggleWakeWord(); true }
-        binding.sendButton.setOnClickListener { processCommand(binding.commandInput.text?.toString().orEmpty()) }
-        binding.devCard.setOnClickListener { startActivity(Intent(this, DeveloperStudioActivity::class.java)) }
-        binding.cameraCard.setOnClickListener { startActivity(Intent(this, CameraActivity::class.java)) }
-        binding.settingsCard.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
-        binding.aiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
-        binding.personalCard.setOnClickListener { startActivity(Intent(this, MemoryActivity::class.java)) }
-        binding.apiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
-        binding.automationCard.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
-        binding.dockVoice.setOnClickListener { startListening() }
-        binding.dockAI.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
-        binding.dockApps.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
-        binding.dockSettings.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
-        binding.dockHome.setOnClickListener { binding.contentScroll.smoothScrollTo(0, 0) }
-        binding.defaultAssistantCard.setOnClickListener { requestDefaultAssistant() }
-        binding.voiceOrb.setOnClickListener { startListening() }
+    }
 
-        handler.post(clock)
-        runCatching { binding.motionBubbles.start() }
-            .onFailure { showResponse("Motion effects are unavailable on this device. JARVIS will continue without them.") }
-        updateAssistantCard()
+    private fun showStartupFallback(error: Exception) {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(48, 48, 48, 48)
+            setBackgroundColor(Color.rgb(3, 8, 15))
+        }
+        root.addView(TextView(this).apply {
+            text = "JARVIS OS"
+            textSize = 32f
+            setTextColor(Color.CYAN)
+            gravity = Gravity.CENTER
+        })
+        root.addView(TextView(this).apply {
+            text = "SAFE STARTUP MODE"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, 12, 0, 18)
+        })
+        root.addView(TextView(this).apply {
+            text = "The main interface could not be initialized on this device.\n\n\${error.javaClass.simpleName}: \${error.message ?: "no message"}"
+            textSize = 14f
+            setTextColor(Color.LTGRAY)
+            gravity = Gravity.CENTER
+        })
+        root.addView(Button(this).apply {
+            text = "RETRY JARVIS"
+            setOnClickListener { recreate() }
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = 28 })
+        setContentView(root)
     }
 
     private val voiceListener = object : VoiceAssistantController.Listener {
