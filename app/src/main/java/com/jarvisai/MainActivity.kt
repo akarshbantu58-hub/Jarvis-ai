@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 12, 0, 18)
         })
         root.addView(TextView(this).apply {
-            text = "The main interface could not be initialized on this device.\n\n\${error.javaClass.simpleName}: \${error.message ?: "no message"}"
+            text = "The main interface could not be initialized on this device.\n\n${error.javaClass.simpleName}: ${error.message ?: "no message"}"
             textSize = 14f
             setTextColor(Color.LTGRAY)
             gravity = Gravity.CENTER
