@@ -2,6 +2,9 @@ package com.jarvisai
 
 import android.content.Context
 import android.util.Base64
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Log
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
@@ -16,51 +19,46 @@ object ApiHub {
     private const val KEY_ALIAS = "jarvis_api_hub_aes"
     private const val KEY_API = "api_key_ciphertext"
     private const val KEY_IV = "api_key_iv"
+    const val GEMINI_PROVIDER = "Gemini"
+    const val DEFAULT_MODEL = "gemini-3.8-flash"
+    private const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
     data class Config(val provider: String, val baseUrl: String, val apiKey: String, val model: String)
 
     fun save(context: Context, config: Config) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val editor = prefs.edit()
-            .putString("provider", config.provider.trim())
-            .putString("base_url", config.baseUrl.trim())
-            .putString("model", config.model.trim())
-            .remove(KEY_API)
-            .remove(KEY_IV)
-
-        if (config.apiKey.isNotBlank()) {
-            val encrypted = encrypt(config.apiKey)
-            editor.putString(KEY_API, encrypted.first)
-                .putString(KEY_IV, encrypted.second)
-        }
-        editor.apply()
+        val key = config.apiKey.trim()
+        require(key.isNotBlank()) { "Paste your Gemini API key first." }
+        val encrypted = encrypt(key)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("provider", GEMINI_PROVIDER)
+            .putString("base_url", DEFAULT_BASE_URL)
+            .putString("model", DEFAULT_MODEL)
+            .putString(KEY_API, encrypted.first)
+            .putString(KEY_IV, encrypted.second)
+            .apply()
     }
 
-    /**
-     * Saves a key using only local format detection. No network request is made
-     * and the key is never sent to a candidate provider just to identify it.
-     */
+    /** Accept only a Gemini key; never probes or sends keys to other providers. */
     fun autoConfigure(context: Context, apiKey: String): ApiKeyAutoDetector.Detection? {
-        val detection = ApiKeyAutoDetector.detect(apiKey) ?: return null
-        save(
-            context,
-            Config(
-                provider = detection.provider,
-                baseUrl = detection.baseUrl,
-                apiKey = apiKey.trim(),
-                model = detection.model
-            )
+        val key = apiKey.trim()
+        if (key.isBlank() || !key.startsWith("AIza")) return null
+        val detection = ApiKeyAutoDetector.Detection(
+            provider = GEMINI_PROVIDER,
+            baseUrl = DEFAULT_BASE_URL,
+            model = DEFAULT_MODEL,
+            message = "Gemini API key format recognized."
         )
+        save(context, Config(GEMINI_PROVIDER, DEFAULT_BASE_URL, key, DEFAULT_MODEL))
         return detection
     }
 
     fun load(context: Context): Config {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return Config(
-            prefs.getString("provider", "OpenAI-compatible") ?: "OpenAI-compatible",
-            prefs.getString("base_url", "https://api.openai.com/v1/chat/completions") ?: "",
+            GEMINI_PROVIDER,
+            DEFAULT_BASE_URL,
             decrypt(prefs.getString(KEY_API, null), prefs.getString(KEY_IV, null)),
-            prefs.getString("model", "gpt-4o-mini") ?: ""
+            DEFAULT_MODEL
         )
     }
 
@@ -75,19 +73,28 @@ object ApiHub {
     }
 
     fun exportSafe(context: Context): JSONObject = JSONObject().apply {
-        val c = load(context)
-        put("provider", c.provider)
-        put("baseUrl", c.baseUrl)
-        put("model", c.model)
-        put("configured", c.apiKey.isNotBlank())
+        put("provider", GEMINI_PROVIDER)
+        put("baseUrl", DEFAULT_BASE_URL)
+        put("model", DEFAULT_MODEL)
+        put("configured", load(context).apiKey.isNotBlank())
     }
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
 
-        val generator = KeyGenerator.getInstance("AES", KEYSTORE)
-        generator.init(256)
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setRandomizedEncryptionRequired(true)
+                .build()
+        )
         return generator.generateKey()
     }
 
@@ -109,6 +116,9 @@ object ApiHub {
                 GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP))
             )
             String(cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP)), StandardCharsets.UTF_8)
-        }.getOrDefault("")
+        }.getOrElse {
+            Log.w("ApiHub", "Could not decrypt saved Gemini key; ask user to enter it again.")
+            ""
+        }
     }
 }
