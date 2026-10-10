@@ -423,11 +423,22 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 runCatching {
                     ApiClient.ask(this, command) { response ->
-                        showResponse(response)
-                        MemoryStore.addConversation(this, "assistant", response)
-                        ensureJarvis()?.speak(response)
-                        binding.voiceOrb.setListening(false)
-                        binding.orbStateText.text = "SPEAKING"
+                        // A provider/network failure must become a visible message,
+                        // never an uncaught UI callback exception that closes JARVIS.
+                        runCatching {
+                            showResponse(response)
+                            runCatching { MemoryStore.addConversation(this, "assistant", response) }
+                            runCatching { ensureJarvis()?.speak(response) }
+                            if (::binding.isInitialized && !isFinishing && !isDestroyed) {
+                                binding.voiceOrb.setListening(false)
+                                binding.orbStateText.text = if (response.startsWith("AI request failed:")) "ERROR" else "ONLINE"
+                            }
+                        }.onFailure {
+                            if (::binding.isInitialized && !isFinishing && !isDestroyed) {
+                                binding.responseText.text = "Gemini replied, but JARVIS could not display or speak the result. Try again."
+                                binding.orbStateText.text = "ERROR"
+                            }
+                        }
                     }
                 }.onFailure {
                     showResponse("AI request could not be started. Check the configured provider and API key.")
