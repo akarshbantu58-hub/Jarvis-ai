@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/bg_jarvis" android:padding="16dp">
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/bg_jarvis" android:padding="12dp">
     <com.jarvisai.MotionBubbleView android:id="@+id/motionBubbles" android:layout_width="0dp" android:layout_height="0dp" android:alpha="0.25" android:importantForAccessibility="no" android:clickable="false" app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent"/>
-    <LinearLayout android:id="@+id/topBar" android:layout_width="0dp" android:layout_height="60dp" android:gravity="center_vertical" android:orientation="horizontal" app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
+    <LinearLayout android:id="@+id/topBar" android:layout_width="0dp" android:layout_height="68dp" android:gravity="center_vertical" android:orientation="horizontal" app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
         <ImageView android:id="@+id/logoImage" android:layout_width="46dp" android:layout_height="46dp" android:background="@drawable/glass_button" android:contentDescription="JARVIS logo" android:padding="3dp" android:scaleType="centerInside"/>
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:paddingStart="12dp">
             <TextView android:id="@+id/titleText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="JARVIS" android:textColor="@color/text_primary" android:textSize="25sp" android:textStyle="bold" android:letterSpacing=".08"/>
-            <TextView android:id="@+id/statusText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="● ONLINE  •  PERSONAL AI" android:textColor="@color/accent" android:textSize="10sp" android:letterSpacing=".08"/>
+            <TextView android:id="@+id/statusText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="YOUR AI ASSISTANT" android:textColor="@color/accent" android:textSize="10sp" android:letterSpacing=".08"/>
         </LinearLayout>
         <TextView android:id="@+id/timeText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:background="@drawable/glass_button" android:paddingHorizontal="12dp" android:paddingVertical="9dp" android:text="00:00" android:textColor="@color/text_secondary" android:textSize="12sp"/>
     </LinearLayout>
@@ -13,11 +13,11 @@
       <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingTop="4dp" android:paddingBottom="20dp">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingHorizontal="4dp">
           <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="YOUR AI. YOUR WORLD." android:textColor="@color/accent" android:textSize="10sp" android:letterSpacing=".18"/>
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Hello, Akarsh." android:textColor="@color/text_primary" android:textSize="28sp" android:textStyle="bold"/>
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="What can I help you with today?" android:textColor="@color/text_secondary" android:textSize="13sp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="YOUR PERSONAL AI" android:textColor="@color/accent" android:textSize="10sp" android:letterSpacing=".18"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Hello, I’m JARVIS." android:textColor="@color/text_primary" android:textSize="28sp" android:textStyle="bold"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="Your assistant. Your world. What shall we do?" android:textColor="@color/text_secondary" android:textSize="13sp"/>
           </LinearLayout>
-          <FrameLayout android:layout_width="154dp" android:layout_height="154dp">
+          <FrameLayout android:layout_width="176dp" android:layout_height="176dp">
             <com.jarvisai.VoiceOrbView android:id="@+id/voiceOrb" android:layout_width="match_parent" android:layout_height="match_parent"/>
             <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:gravity="center" android:orientation="vertical">
               <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="J" android:textColor="#FFFFFFFF" android:textSize="42sp" android:textStyle="bold"/>
@@ -50,7 +50,7 @@
           <Button android:id="@+id/voiceModeButton" android:layout_width="55dp" android:layout_height="44dp" android:layout_marginStart="4dp" android:minWidth="0dp" android:paddingHorizontal="3dp" android:text="PUSH" android:textSize="9sp"/>
           <Button android:id="@+id/sendButton" android:layout_width="58dp" android:layout_height="44dp" android:layout_marginStart="4dp" android:minWidth="0dp" android:paddingHorizontal="3dp" android:text="SEND" android:textSize="9sp"/>
         </LinearLayout>
-        <TextView android:id="@+id/responseText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:background="@drawable/glass_card" android:padding="16dp" android:text="JARVIS is ready. Ask a question or say a command." android:textColor="@color/text_secondary" android:textSize="14sp" android:lineSpacingExtra="3dp"/>
+        <TextView android:id="@+id/responseText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:background="@drawable/glass_card" android:padding="16dp" android:text="I’m ready. Ask anything or give me a command." android:textColor="@color/text_secondary" android:textSize="14sp" android:lineSpacingExtra="3dp"/>
       </LinearLayout>
     </androidx.core.widget.NestedScrollView>
     <LinearLayout android:id="@+id/dock" android:layout_width="wrap_content" android:layout_height="56dp" android:layout_marginBottom="3dp" android:background="@drawable/glass_card" android:gravity="center" android:paddingHorizontal="5dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
