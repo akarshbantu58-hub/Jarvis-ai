@@ -1,7 +1,10 @@
 package com.jarvisai
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
@@ -23,9 +26,14 @@ object MemoryStore {
 
     fun addConversation(context: Context, role: String, text: String) {
         if (text.isBlank()) return
-        val list = conversations(context).toMutableList()
-        list += Entry(role.take(24), text.take(10000), System.currentTimeMillis())
-        saveConversations(context, list.takeLast(100))
+        runCatching {
+            val list = conversations(context).toMutableList()
+            list += Entry(role.take(24), text.take(10000), System.currentTimeMillis())
+            saveConversations(context, list.takeLast(100))
+        }.onFailure {
+            // Memory must never crash the main chat flow.
+            Log.w("MemoryStore", "Conversation could not be saved; continuing without memory.", it)
+        }
     }
 
     fun conversations(context: Context): List<Entry> = runCatching {
@@ -37,20 +45,28 @@ object MemoryStore {
                 add(Entry(item.optString("role"), item.optString("text"), item.optLong("time")))
             }
         }
+    }.onFailure {
+        Log.w("MemoryStore", "Saved conversation memory could not be read.", it)
     }.getOrDefault(emptyList())
 
     fun saveUserMemory(context: Context, key: String, value: String) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit().putString("memory_${key.trim().take(80)}", value.take(4000)).apply()
+        runCatching {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            prefs.edit().putString("memory_${key.trim().take(80)}", value.take(4000)).apply()
+        }.onFailure { Log.w("MemoryStore", "User memory could not be saved.", it) }
     }
 
-    fun userMemories(context: Context): Map<String, String> = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        .all.filterKeys { it.startsWith("memory_") }
-        .mapKeys { it.key.removePrefix("memory_") }
-        .mapValues { it.value?.toString().orEmpty() }
+    fun userMemories(context: Context): Map<String, String> = runCatching {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .all.filterKeys { it.startsWith("memory_") }
+            .mapKeys { it.key.removePrefix("memory_") }
+            .mapValues { it.value?.toString().orEmpty() }
+    }.getOrDefault(emptyMap())
 
     fun deleteUserMemory(context: Context, key: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove("memory_$key").apply()
+        runCatching {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove("memory_$key").apply()
+        }
     }
 
     fun clearAll(context: Context) {
@@ -76,7 +92,19 @@ object MemoryStore {
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance(KEYSTORE).apply { load(null) }
         (ks.getKey(ALIAS, null) as? SecretKey)?.let { return it }
-        return KeyGenerator.getInstance("AES", KEYSTORE).apply { init(256) }.generateKey()
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setRandomizedEncryptionRequired(true)
+                .build()
+        )
+        return generator.generateKey()
     }
 
     private fun encrypt(context: Context, plain: String) {
