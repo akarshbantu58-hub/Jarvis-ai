@@ -90,11 +90,11 @@ class VoiceOrbView @JvmOverloads constructor(
         paint.strokeWidth = 2.4f
         paint.color = Color.argb(205, 75, 220, 255)
         c.drawArc(outer, (spin * 57.2958).toFloat(), 74f, false, paint)
-        c.drawArc(outer, (180f - spin * 35f).toFloat(), 48f, false, paint)
+        c.drawArc(outer, (180.0 - spin * 35.0).toFloat(), 48f, false, paint)
         val innerOrbit = RectF(cx - rr * 1.42f, cy - rr * 1.42f, cx + rr * 1.42f, cy + rr * 1.42f)
         paint.strokeWidth = 1.5f
         paint.color = Color.argb(145, 145, 120, 255)
-        c.drawArc(innerOrbit, (-spin * 45f).toFloat(), 96f, false, paint)
+        c.drawArc(innerOrbit, (-spin * 45.0).toFloat(), 96f, false, paint)
 
         // Orbital light nodes.
         for (i in 0 until 4) {
