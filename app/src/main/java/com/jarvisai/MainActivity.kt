@@ -19,6 +19,10 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.Settings
+import android.net.ConnectivityManager
+import android.os.BatteryManager
+import android.os.Environment
+import android.os.StatFs
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -121,7 +125,27 @@ class MainActivity : AppCompatActivity() {
             binding.dockSettings.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
             binding.dockHome.setOnClickListener { binding.contentScroll.smoothScrollTo(0, 0) }
             binding.defaultAssistantCard.setOnClickListener { requestDefaultAssistant() }
-            binding.voiceOrb.setOnClickListener { startListening() }
+                        binding.voiceOrb.setOnClickListener { startListening() }
+            binding.cardVoiceOrb.setOnClickListener { startListening() }
+            binding.chipThink.setOnClickListener { binding.commandInput.setText("Explain quantum physics simply") }
+            binding.chipSearch.setOnClickListener { binding.commandInput.setText("Search web: latest discoveries in space") }
+            binding.chipCreate.setOnClickListener { binding.commandInput.setText("Write a poem about the universe") }
+            binding.chipControl.setOnClickListener { binding.commandInput.setText("Open YouTube") }
+            binding.cardYoutubeResult.setOnClickListener {
+                runCatching {
+                    val launchIntent = packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                    if (launchIntent != null) {
+                        startActivity(launchIntent)
+                    } else {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
+                    }
+                }
+            }
+            binding.actionOpenApps.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
+            binding.actionRecord.setOnClickListener { startListening() }
+            binding.actionLiveCamera.setOnClickListener { startActivity(Intent(this, CameraActivity::class.java)) }
+            binding.actionShareScreen.setOnClickListener { showResponse("Screen sharing protocol initialized.") }
+            binding.actionMore.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
 
             handler.post(clock)
             runCatching { binding.motionBubbles.start() }
@@ -235,6 +259,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        updateSystemStatus()
         if (::binding.isInitialized) {
             runCatching { binding.motionBubbles.start() }
             updateAssistantCard()
@@ -250,6 +275,45 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         runCatching { unregisterReceiver(wakeReceiver) }
         super.onStop()
+    }
+
+    private fun updateSystemStatus() {
+        if (!::binding.isInitialized) return
+        runCatching {
+            // Battery telemetry
+            val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = registerReceiver(null, batteryFilter)
+            val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (level >= 0 && scale > 0) {
+                val pct = (level * 100) / scale
+                binding.progressBattery.progress = pct
+                binding.textBatteryPercent.text = "$pct%"
+            }
+
+            // Storage telemetry
+            val stat = StatFs(Environment.getDataDirectory().path)
+            val totalBytes = stat.totalBytes
+            val availableBytes = stat.availableBytes
+            val usedBytes = totalBytes - availableBytes
+            val usedGb = String.format(Locale.US, "%.1f", usedBytes.toDouble() / (1024 * 1024 * 1024))
+            val totalGb = String.format(Locale.US, "%.0f", totalBytes.toDouble() / (1024 * 1024 * 1024))
+            if (totalBytes > 0) {
+                val storagePct = ((usedBytes * 100) / totalBytes).toInt()
+                binding.progressStorage.progress = storagePct
+                binding.textStorageUsage.text = "$usedGb GB / $totalGb GB"
+            }
+
+            // Network telemetry
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val activeNet = cm?.activeNetworkInfo
+            val isWifi = activeNet?.type == ConnectivityManager.TYPE_WIFI
+            binding.textNetworkStatus.text = if (activeNet?.isConnected == true) {
+                if (isWifi) "Wi-Fi" else "Mobile"
+            } else {
+                "Offline"
+            }
+        }
     }
 
     private fun updateAssistantCard() {
