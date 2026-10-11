@@ -119,11 +119,28 @@ class MainActivity : AppCompatActivity() {
             binding.personalCard.setOnClickListener { startActivity(Intent(this, MemoryActivity::class.java)) }
             binding.apiCard.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
             binding.automationCard.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
-            binding.dockVoice.setOnClickListener { startListening() }
-            binding.dockAI.setOnClickListener { startActivity(Intent(this, ApiHubActivity::class.java)) }
-            binding.dockApps.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
-            binding.dockSettings.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
-            binding.dockHome.setOnClickListener { binding.contentScroll.smoothScrollTo(0, 0) }
+            // Keep the bottom dock visually synchronized with the user's selection.
+            selectDockItem("home")
+            binding.dockVoice.setOnClickListener {
+                selectDockItem("voice")
+                startListening()
+            }
+            binding.dockAI.setOnClickListener {
+                selectDockItem("ai")
+                startActivity(Intent(this, ApiHubActivity::class.java))
+            }
+            binding.dockApps.setOnClickListener {
+                selectDockItem("apps")
+                startActivity(Intent(this, AutomationActivity::class.java))
+            }
+            binding.dockSettings.setOnClickListener {
+                selectDockItem("settings")
+                startActivity(Intent(this, FeatureCenterActivity::class.java))
+            }
+            binding.dockHome.setOnClickListener {
+                selectDockItem("home")
+                binding.contentScroll.smoothScrollTo(0, 0)
+            }
             binding.defaultAssistantCard.setOnClickListener { requestDefaultAssistant() }
                         binding.voiceOrb.setOnClickListener { startListening() }
             binding.cardVoiceOrb.setOnClickListener { startListening() }
@@ -153,6 +170,27 @@ class MainActivity : AppCompatActivity() {
             updateAssistantCard()
         } catch (e: Exception) {
             showStartupFallback(e)
+        }
+    }
+
+    private fun selectDockItem(selected: String) {
+        if (!::binding.isInitialized) return
+        val items = listOf(
+            "home" to binding.dockHome,
+            "voice" to binding.dockVoice,
+            "apps" to binding.dockApps,
+            "ai" to binding.dockAI,
+            "settings" to binding.dockSettings
+        )
+        items.forEach { (key, view) ->
+            val active = key == selected
+            view.setBackgroundResource(
+                if (active) R.drawable.nav_item_selected else R.drawable.nav_item
+            )
+            view.setTextColor(
+                if (active) Color.rgb(36, 232, 255) else Color.rgb(148, 163, 184)
+            )
+            view.isSelected = active
         }
     }
 
