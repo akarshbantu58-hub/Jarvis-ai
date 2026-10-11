@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 
@@ -64,6 +65,18 @@ class JarvisVoiceForegroundService : Service() {
             wakeWordEngine = WakeWordEngine(
                 context = this,
                 onWakeWord = {
+                    // Display the floating assistant over the current app when the
+                    // user has granted Android's separate draw-over-other-apps access.
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+                        runCatching {
+                            startService(
+                                Intent(this, JarvisOverlayService::class.java)
+                                    .setAction(JarvisOverlayService.ACTION_SHOW_WAKE)
+                            )
+                        }.onFailure { updateNotification("Wake detected. Open JARVIS to continue.") }
+                    } else {
+                        updateNotification("Wake detected. Enable JARVIS display-over-apps permission.")
+                    }
                     val detected = Intent(ACTION_WAKE_DETECTED).setPackage(packageName)
                     sendBroadcast(detected)
                     updateNotification("Wake word detected — JARVIS is ready")
