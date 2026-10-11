@@ -84,30 +84,93 @@ class ApiHubActivity : Activity() {
         })
 
         val advancedTitle = TextView(this).apply {
-            text = "GEMINI MODEL"
+            text = "CHOOSE GEMINI MODEL"
             textSize = 16f
             setTextColor(Color.CYAN)
             setPadding(0, 24, 0, 8)
         }
         root.addView(advancedTitle)
-        val advanced = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
+
+        val modelStatus = TextView(this).apply {
+            text = "Tap LOAD MODELS to retrieve models available to your Gemini API key."
+            setTextColor(Color.LTGRAY)
+            setPadding(0, 4, 0, 8)
         }
-        root.addView(advanced)
-        val model = edit(ApiHub.DEFAULT_MODEL, "Gemini model ID")
-        advanced.addView(model)
-        advanced.addView(Button(this).apply {
-            text = "SAVE MODEL"
-            setOnClickListener {
-                Toast.makeText(this@ApiHubActivity, "Model is currently fixed to ${ApiHub.DEFAULT_MODEL} to keep the Gemini endpoint consistent.", Toast.LENGTH_LONG).show()
-                model.setText(ApiHub.DEFAULT_MODEL)
+        root.addView(modelStatus)
+
+        val modelSpinner = Spinner(this)
+        root.addView(modelSpinner)
+        val modelDetails = TextView(this).apply {
+            setTextColor(Color.GRAY)
+            setPadding(0, 6, 0, 8)
+        }
+        root.addView(modelDetails)
+
+        var availableModels: List<GeminiModelCatalog.Model> = emptyList()
+        fun displayModels(models: List<GeminiModelCatalog.Model>, selectedId: String) {
+            availableModels = models
+            val labels = models.map { "${it.displayName}  •  ${it.id}" }
+            modelSpinner.adapter = ArrayAdapter(
+                this@ApiHubActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                labels
+            )
+            val index = models.indexOfFirst { it.id == selectedId }.let { if (it >= 0) it else 0 }
+            modelSpinner.setSelection(index)
+            modelDetails.text = models.getOrNull(index)?.description.orEmpty()
+            modelSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    modelDetails.text = availableModels.getOrNull(position)?.description.orEmpty()
+                }
             }
-        })
-        advancedTitle.setOnClickListener {
-            advanced.visibility = if (advanced.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
 
+        root.addView(Button(this).apply {
+            text = "LOAD ALL AVAILABLE GEMINI MODELS"
+            setOnClickListener {
+                val key = quickKey.text.toString().trim().ifBlank { runCatching { ApiHub.load(this@ApiHubActivity).apiKey }.getOrDefault("") }
+                if (key.isBlank()) {
+                    Toast.makeText(this@ApiHubActivity, "Save your Gemini API key first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                isEnabled = false
+                modelStatus.text = "Loading models from Google…"
+                GeminiModelCatalog.fetch(key) { result ->
+                    isEnabled = true
+                    result.onSuccess { models ->
+                        displayModels(models, runCatching { ApiHub.load(this@ApiHubActivity).model }.getOrDefault(ApiHub.DEFAULT_MODEL))
+                        modelStatus.text = "${models.size} Gemini models available to this API key."
+                    }.onFailure { error ->
+                        modelStatus.text = "Could not load models."
+                        Toast.makeText(this@ApiHubActivity, error.message ?: "Gemini model request failed.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        })
+
+        root.addView(Button(this).apply {
+            text = "SAVE SELECTED MODEL"
+            setOnClickListener {
+                val selected = availableModels.getOrNull(modelSpinner.selectedItemPosition)
+                if (selected == null) {
+                    Toast.makeText(this@ApiHubActivity, "Load the available models first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                runCatching { ApiHub.setModel(this@ApiHubActivity, selected.id) }
+                    .onSuccess {
+                        detected.text = "Gemini configured • ${selected.id}"
+                        Toast.makeText(this@ApiHubActivity, "Gemini model saved: ${selected.id}", Toast.LENGTH_LONG).show()
+                    }
+                    .onFailure { Toast.makeText(this@ApiHubActivity, "Could not save model: ${it.message}", Toast.LENGTH_LONG).show() }
+            }
+        })
+
+        // Populate with the saved model so the selected configuration is visible immediately.
+        runCatching {
+            val saved = ApiHub.load(this)
+            displayModels(listOf(GeminiModelCatalog.Model(saved.model, saved.model, "Currently saved model. Load models to browse Google's full list.")), saved.model)
+        }
         root.addView(TextView(this).apply {
             text = "If saving fails, JARVIS will show an error instead of closing. Never share your API key in screenshots, chat, or GitHub."
             textSize = 12f
