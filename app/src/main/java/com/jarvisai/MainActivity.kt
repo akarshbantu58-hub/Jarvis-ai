@@ -509,6 +509,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun executeApprovedCommand(command: String) {
         val lower = command.lowercase(Locale.getDefault()).trim()
+
+        // Route only commands understood by the deterministic planner to the guarded
+        // accessibility executor. Natural-language AI responses keep the existing path.
+        val plannedSteps = runCatching { AgentPlanner().plan(command) }.getOrDefault(emptyList())
+        if (plannedSteps.isNotEmpty()) {
+            val result = runCatching { ActionExecutor(this).execute(command, plannedSteps) }.getOrNull()
+            if (result != null) {
+                val detail = (result.messages + listOfNotNull(result.screenSummary?.takeIf { it.isNotBlank() }))
+                    .joinToString("\\n")
+                val message = when (result.status) {
+                    ExecutionSession.Status.SUCCEEDED -> "Action sequence completed.\\n$detail"
+                    ExecutionSession.Status.WAITING_FOR_CONFIRMATION -> "Confirmation required. No actions were executed.\\n$detail"
+                    else -> "Action sequence stopped.\\n$detail"
+                }
+                showResponse(message)
+                appendChatMessage(message, fromUser = false)
+                MemoryStore.addConversation(this, "assistant", message)
+                ensureJarvis()?.speak(message)
+                binding.orbStateText.text = if (result.status == ExecutionSession.Status.SUCCEEDED) "ONLINE" else "ACTION STATUS"
+                return
+            }
+        }
+
         val local = runCatching { ensureActions()?.execute(command) }.getOrNull()
         if (local != null) {
             showResponse(local)
