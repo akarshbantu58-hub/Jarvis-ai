@@ -510,6 +510,55 @@ class MainActivity : AppCompatActivity() {
     private fun executeApprovedCommand(command: String) {
         val lower = command.lowercase(Locale.getDefault()).trim()
 
+        // Multi-step screen tasks use Gemini planning, strict parsing, and a review dialog.
+        if (looksLikeScreenAutomation(lower)) {
+            AgentCoordinator.plan(this, command) { plan ->
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (plan.steps.isEmpty()) {
+                        showResponse(plan.explanation)
+                        binding.orbStateText.text = "PLAN FAILED"
+                        return@runOnUiThread
+                    }
+                    val preview = plan.steps.mapIndexed { index, step ->
+                        "${index + 1}. ${step.action.name}${step.value?.let { ": $it" } ?: ""}"
+                    }.joinToString("\n")
+                    AlertDialog.Builder(this)
+                        .setTitle("Review JARVIS action plan")
+                        .setMessage("Gemini proposed these actions:\n\n$preview\n\nContinue only if this matches your request. Apps may require manual interaction.")
+                        .setNegativeButton("CANCEL") { _, _ ->
+                            showResponse("Action plan cancelled. Nothing was executed.")
+                            binding.orbStateText.text = "IDLE"
+                        }
+                        .setPositiveButton("REVIEW & RUN") { _, _ ->
+                            binding.orbStateText.text = "EXECUTING"
+                            Thread {
+                                val result = ActionExecutor(this).execute(command, plan.steps)
+                                runOnUiThread {
+                                    if (isFinishing || isDestroyed) return@runOnUiThread
+                                    val details = (result.messages + listOfNotNull(
+                                        result.screenSummary?.takeIf { it.isNotBlank() }
+                                    )).joinToString("\n")
+                                    val message = when (result.status) {
+                                        ExecutionSession.Status.SUCCEEDED -> "Action sequence finished.\n$details"
+                                        ExecutionSession.Status.WAITING_FOR_CONFIRMATION -> "No actions executed; additional confirmation is required.\n$details"
+                                        else -> "Action sequence stopped; check the screen and try again.\n$details"
+                                    }
+                                    showResponse(message)
+                                    appendChatMessage(message, fromUser = false)
+                                    MemoryStore.addConversation(this, "assistant", message)
+                                    ensureJarvis()?.speak(message)
+                                    binding.orbStateText.text =
+                                        if (result.status == ExecutionSession.Status.SUCCEEDED) "ONLINE" else "ACTION STATUS"
+                                }
+                            }.start()
+                        }
+                        .show()
+                }
+            }
+            return
+        }
+
         // Route only commands understood by the deterministic planner to the guarded
         // accessibility executor. Natural-language AI responses keep the existing path.
         val plannedSteps = runCatching { AgentPlanner().plan(command) }.getOrDefault(emptyList())
@@ -576,6 +625,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun looksLikeScreenAutomation(command: String): Boolean {
+        val appMention = listOf("instagram", "youtube", "chrome", "whatsapp", "maps")
+            .any { command.contains(it) }
+        val actionMention = listOf(
+            "search for", "search ", "find ", "like ", "open the latest",
+            "latest reel", "tap ", "click ", "scroll ", "follow "
+        ).any { command.contains(it) }
+        return appMention && actionMention
     }
 
     private fun appendChatMessage(text: String, fromUser: Boolean) {
