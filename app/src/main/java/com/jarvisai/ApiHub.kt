@@ -13,76 +13,169 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/**
+ * Stores a separate encrypted API key and configuration for each provider.
+ * Keys stay in Android Keystore-backed AES/GCM encrypted SharedPreferences.
+ */
 object ApiHub {
     private const val PREFS = "jarvis_api_hub"
     private const val KEYSTORE = "AndroidKeyStore"
     private const val KEY_ALIAS = "jarvis_api_hub_aes"
-    private const val KEY_API = "api_key_ciphertext"
-    private const val KEY_IV = "api_key_iv"
+    private const val LEGACY_KEY_API = "api_key_ciphertext"
+    private const val LEGACY_KEY_IV = "api_key_iv"
+    private const val SELECTED_PROVIDER = "selected_provider"
+
     const val GEMINI_PROVIDER = "Gemini"
+    const val OPENROUTER_PROVIDER = "OpenRouter"
+    const val GROQ_PROVIDER = "Groq"
+    const val OPENAI_PROVIDER = "OpenAI-compatible"
+
     const val DEFAULT_MODEL = "gemini-3.8-flash"
     private const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
     data class Config(val provider: String, val baseUrl: String, val apiKey: String, val model: String)
 
-    fun save(context: Context, config: Config) {
-        val key = config.apiKey.trim()
-        require(key.isNotBlank()) { "Paste your Gemini API key first." }
-        val encrypted = encrypt(key)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString("provider", GEMINI_PROVIDER)
-            .putString("base_url", DEFAULT_BASE_URL)
-            .putString("model", DEFAULT_MODEL)
-            .putString(KEY_API, encrypted.first)
-            .putString(KEY_IV, encrypted.second)
-            .apply()
+    fun providers(): List<String> = listOf(
+        GEMINI_PROVIDER, OPENROUTER_PROVIDER, GROQ_PROVIDER, OPENAI_PROVIDER
+    )
+
+    fun defaultConfig(provider: String): Config = when (provider) {
+        GEMINI_PROVIDER -> Config(
+            GEMINI_PROVIDER, DEFAULT_BASE_URL, "", DEFAULT_MODEL
+        )
+        OPENROUTER_PROVIDER -> Config(
+            OPENROUTER_PROVIDER,
+            "https://openrouter.ai/api/v1/chat/completions",
+            "",
+            "openai/gpt-4o-mini"
+        )
+        GROQ_PROVIDER -> Config(
+            GROQ_PROVIDER,
+            "https://api.groq.com/openai/v1/chat/completions",
+            "",
+            "llama-3.3-70b-versatile"
+        )
+        else -> Config(
+            OPENAI_PROVIDER,
+            "https://api.openai.com/v1/chat/completions",
+            "",
+            "gpt-4o-mini"
+        )
     }
 
-    /** Accept only a Gemini key; never probes or sends keys to other providers. */
+    fun save(context: Context, config: Config) {
+        val provider = canonicalProvider(config.provider)
+        val defaults = defaultConfig(provider)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = providerId(provider)
+        val cleanBase = config.baseUrl.trim()
+        val cleanModel = config.model.trim()
+        require(cleanBase.isNotBlank()) { "Enter the API endpoint URL." }
+        require(cleanModel.isNotBlank()) { "Enter the model ID." }
+        val oldKey = decrypt(
+            prefs.getString("key_${id}_ciphertext", null),
+            prefs.getString("key_${id}_iv", null)
+        ).ifBlank {
+            if (provider == GEMINI_PROVIDER) {
+                decrypt(prefs.getString(LEGACY_KEY_API, null), prefs.getString(LEGACY_KEY_IV, null))
+            } else ""
+        }
+        val key = config.apiKey.trim().ifBlank { oldKey }
+        val editor = prefs.edit()
+            .putString(SELECTED_PROVIDER, provider)
+            .putString("base_url_$id", cleanBase)
+            .putString("model_$id", cleanModel)
+        if (key.isNotBlank()) {
+            val encrypted = encrypt(key)
+            editor.putString("key_${id}_ciphertext", encrypted.first)
+                .putString("key_${id}_iv", encrypted.second)
+        }
+        // Retain per-provider credentials if the key field is intentionally left blank.
+        editor.apply()
+    }
+
+    /** Accepts a Gemini key without probing or transmitting it to any other provider. */
     fun autoConfigure(context: Context, apiKey: String): ApiKeyAutoDetector.Detection? {
         val key = apiKey.trim()
         if (key.isBlank() || !key.startsWith("AIza")) return null
+        val defaults = defaultConfig(GEMINI_PROVIDER)
         val detection = ApiKeyAutoDetector.Detection(
             provider = GEMINI_PROVIDER,
-            baseUrl = DEFAULT_BASE_URL,
-            model = DEFAULT_MODEL,
+            baseUrl = defaults.baseUrl,
+            model = defaults.model,
             message = "Gemini API key format recognized."
         )
-        save(context, Config(GEMINI_PROVIDER, DEFAULT_BASE_URL, key, DEFAULT_MODEL))
+        save(context, defaults.copy(apiKey = key))
         return detection
     }
 
     fun load(context: Context): Config {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val selected = canonicalProvider(prefs.getString(SELECTED_PROVIDER, GEMINI_PROVIDER).orEmpty())
+        return load(context, selected)
+    }
+
+    fun load(context: Context, providerName: String): Config {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val provider = canonicalProvider(providerName)
+        val defaults = defaultConfig(provider)
+        val id = providerId(provider)
+        val key = decrypt(
+            prefs.getString("key_${id}_ciphertext", null),
+            prefs.getString("key_${id}_iv", null)
+        ).ifBlank {
+            if (provider == GEMINI_PROVIDER) {
+                decrypt(prefs.getString(LEGACY_KEY_API, null), prefs.getString(LEGACY_KEY_IV, null))
+            } else ""
+        }
         return Config(
-            GEMINI_PROVIDER,
-            DEFAULT_BASE_URL,
-            decrypt(prefs.getString(KEY_API, null), prefs.getString(KEY_IV, null)),
-            DEFAULT_MODEL
+            provider = provider,
+            baseUrl = prefs.getString("base_url_$id", null) ?: defaults.baseUrl,
+            apiKey = key,
+            model = prefs.getString("model_$id", null) ?: defaults.model
         )
     }
 
-    fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
-        runCatching {
-            KeyStore.getInstance(KEYSTORE).apply {
-                load(null)
-                if (containsAlias(KEY_ALIAS)) deleteEntry(KEY_ALIAS)
-            }
+    fun clear(context: Context, providerName: String = load(context).provider) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = providerId(canonicalProvider(providerName))
+        prefs.edit()
+            .remove("key_${id}_ciphertext")
+            .remove("key_${id}_iv")
+            .remove(LEGACY_KEY_API.takeIf { id == "gemini" } .orEmpty().takeIf { it.isNotBlank() })
+            .remove(LEGACY_KEY_IV.takeIf { id == "gemini" }.orEmpty().takeIf { it.isNotBlank() })
+            .apply()
+        // The key is shared by provider records; deleting it would make other saved keys unreadable.
+    }
+
+    fun exportSafe(context: Context): JSONObject {
+        val config = load(context)
+        return JSONObject().apply {
+            put("provider", config.provider)
+            put("baseUrl", config.baseUrl)
+            put("model", config.model)
+            put("configured", config.apiKey.isNotBlank())
         }
     }
 
-    fun exportSafe(context: Context): JSONObject = JSONObject().apply {
-        put("provider", GEMINI_PROVIDER)
-        put("baseUrl", DEFAULT_BASE_URL)
-        put("model", DEFAULT_MODEL)
-        put("configured", load(context).apiKey.isNotBlank())
+    private fun canonicalProvider(value: String): String = when (value.trim().lowercase()) {
+        "gemini" -> GEMINI_PROVIDER
+        "openrouter" -> OPENROUTER_PROVIDER
+        "groq" -> GROQ_PROVIDER
+        "openai", "openai-compatible", "custom", "local" -> OPENAI_PROVIDER
+        else -> OPENAI_PROVIDER
+    }
+
+    private fun providerId(provider: String): String = when (canonicalProvider(provider)) {
+        GEMINI_PROVIDER -> "gemini"
+        OPENROUTER_PROVIDER -> "openrouter"
+        GROQ_PROVIDER -> "groq"
+        else -> "openai"
     }
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
         generator.init(
             KeyGenParameterSpec.Builder(
@@ -117,7 +210,7 @@ object ApiHub {
             )
             String(cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP)), StandardCharsets.UTF_8)
         }.getOrElse {
-            Log.w("ApiHub", "Could not decrypt saved Gemini key; ask user to enter it again.")
+            Log.w("ApiHub", "Could not decrypt saved API key; ask user to enter it again.")
             ""
         }
     }
