@@ -6,27 +6,40 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.View
 import android.widget.*
+import com.jarvisai.ai.AiProviderManager
 
 class ApiHubActivity : Activity() {
+    private lateinit var providerPicker: Spinner
+    private lateinit var endpointField: EditText
+    private lateinit var modelField: EditText
+    private lateinit var keyField: EditText
+    private lateinit var statusText: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val config = runCatching { ApiHub.load(this) }.getOrElse {
-            ApiHub.Config(ApiHub.GEMINI_PROVIDER, "https://generativelanguage.googleapis.com/v1beta", "", ApiHub.DEFAULT_MODEL)
-        }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(28, 40, 28, 28)
+            setPadding(24, 32, 24, 28)
             setBackgroundColor(Color.rgb(5, 8, 13))
         }
 
-        fun edit(value: String, hint: String, secret: Boolean = false) = EditText(this).apply {
+        fun label(text: String, color: Int = Color.CYAN) = TextView(this).apply {
+            this.text = text
+            textSize = 14f
+            setTextColor(color)
+            setPadding(0, 18, 0, 6)
+        }
+
+        fun edit(value: String, hintText: String, secret: Boolean = false) = EditText(this).apply {
             setText(value)
-            this.hint = hint
+            hint = hintText
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
             setSingleLine(true)
+            setPadding(12, 10, 12, 10)
             if (secret) inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            else inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         }
 
         root.addView(TextView(this).apply {
@@ -35,99 +48,175 @@ class ApiHubActivity : Activity() {
             setTextColor(Color.WHITE)
         })
         root.addView(TextView(this).apply {
-            text = "GEMINI API"
-            textSize = 16f
-            setTextColor(Color.CYAN)
-            setPadding(0, 24, 0, 8)
-        })
-        root.addView(TextView(this).apply {
-            text = "Paste your Google Gemini API key. JARVIS uses Gemini only. Your key is encrypted on this device and is not shown in messages."
+            text = "Choose a provider, save its settings, then test the connection. Each provider has its own encrypted key."
+            textSize = 14f
             setTextColor(Color.LTGRAY)
-            setPadding(0, 0, 0, 14)
+            setPadding(0, 8, 0, 8)
         })
 
-        val quickKey = edit("", "Paste Gemini API key here", true)
-        root.addView(quickKey)
+        root.addView(label("AI PROVIDER"))
+        providerPicker = Spinner(this)
+        providerPicker.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            ApiHub.providers()
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        root.addView(providerPicker)
 
-        val detected = TextView(this).apply {
-            text = if (config.apiKey.isNotBlank()) "Gemini configured • ${config.model}" else "No Gemini API key configured"
+        root.addView(label("API ENDPOINT URL"))
+        endpointField = edit("", "HTTPS endpoint or localhost URL")
+        root.addView(endpointField)
+
+        root.addView(label("MODEL ID"))
+        modelField = edit("", "Exact model ID from provider")
+        root.addView(modelField)
+
+        root.addView(label("API KEY"))
+        keyField = edit("", "Paste API key (leave blank to keep saved key)", true)
+        root.addView(keyField)
+
+        statusText = TextView(this).apply {
+            textSize = 13f
             setTextColor(Color.LTGRAY)
-            setPadding(0, 12, 0, 12)
+            setPadding(0, 16, 0, 8)
         }
-        root.addView(detected)
+        root.addView(statusText)
+
+        fun selectedProvider(): String =
+            providerPicker.selectedItem?.toString() ?: ApiHub.GEMINI_PROVIDER
+
+        fun loadProvider(provider: String) {
+            val config = runCatching { ApiHub.load(this, provider) }
+                .getOrElse { ApiHub.defaultConfig(provider) }
+            endpointField.setText(config.baseUrl)
+            modelField.setText(config.model)
+            keyField.setText("")
+            statusText.text = if (config.apiKey.isNotBlank()) {
+                "${config.provider}: saved key found • key hidden for safety"
+            } else {
+                "${config.provider}: no saved key"
+            }
+        }
+
+        providerPicker.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                loadProvider(ApiHub.providers()[position])
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        providerPicker.setSelection(ApiHub.providers().indexOf(ApiHub.load(this).provider).coerceAtLeast(0))
 
         root.addView(Button(this).apply {
-            text = "SAVE GEMINI KEY"
+            text = "SAVE PROVIDER SETTINGS"
             setOnClickListener {
-                val keyValue = quickKey.text.toString().trim()
-                if (keyValue.isBlank()) {
-                    Toast.makeText(this@ApiHubActivity, "Paste your Gemini API key first", Toast.LENGTH_SHORT).show()
+                val provider = selectedProvider()
+                val endpoint = endpointField.text.toString().trim()
+                val model = modelField.text.toString().trim()
+                val enteredKey = keyField.text.toString().trim()
+                val savedKey = runCatching { ApiHub.load(this@ApiHubActivity, provider).apiKey }.getOrDefault("")
+                val keyAvailable = enteredKey.isNotBlank() || savedKey.isNotBlank()
+                val isLocal = runCatching {
+                    val host = android.net.Uri.parse(endpoint).host.orEmpty()
+                    host.equals("localhost", true) || host == "127.0.0.1" || host == "::1"
+                }.getOrDefault(false)
+
+                if (endpoint.isBlank() || model.isBlank()) {
+                    Toast.makeText(this@ApiHubActivity, "Enter both endpoint URL and model ID.", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
-                if (!keyValue.startsWith("AIza")) {
-                    Toast.makeText(this@ApiHubActivity, "That does not look like a Gemini API key. Check Google AI Studio.", Toast.LENGTH_LONG).show()
+                if (!endpoint.startsWith("https://", true) && !isLocal) {
+                    Toast.makeText(this@ApiHubActivity, "Use HTTPS for remote API endpoints. HTTP is allowed only for localhost.", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
-                val result = runCatching { ApiHub.autoConfigure(this@ApiHubActivity, keyValue) }
-                result.onSuccess { detection ->
-                    if (detection == null) {
-                        Toast.makeText(this@ApiHubActivity, "Gemini key format not recognized. Nothing was saved.", Toast.LENGTH_LONG).show()
-                    } else {
-                        quickKey.setText("")
-                        detected.text = "Gemini configured • ${ApiHub.DEFAULT_MODEL}"
-                        Toast.makeText(this@ApiHubActivity, "Gemini key saved securely on this device.", Toast.LENGTH_LONG).show()
+                if (!keyAvailable && !isLocal) {
+                    Toast.makeText(this@ApiHubActivity, "Enter an API key for this provider.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+
+                val config = ApiHub.Config(provider, endpoint, enteredKey, model)
+                runCatching { ApiHub.save(this@ApiHubActivity, config) }
+                    .onSuccess {
+                        keyField.setText("")
+                        statusText.text = "$provider settings saved • key encrypted on this device"
+                        Toast.makeText(this@ApiHubActivity, "Provider settings saved.", Toast.LENGTH_SHORT).show()
                     }
-                }.onFailure { error ->
-                    Toast.makeText(this@ApiHubActivity, "Could not save key: ${error.javaClass.simpleName}. Try again; JARVIS is still open.", Toast.LENGTH_LONG).show()
+                    .onFailure { error ->
+                        Toast.makeText(this@ApiHubActivity, "Could not save settings: ${error.message ?: error.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                    }
+            }
+        })
+
+        root.addView(Button(this).apply {
+            text = "TEST AI CONNECTION"
+            setOnClickListener {
+                val provider = selectedProvider()
+                val endpoint = endpointField.text.toString().trim()
+                val model = modelField.text.toString().trim()
+                val enteredKey = keyField.text.toString().trim()
+                val savedKey = runCatching { ApiHub.load(this@ApiHubActivity, provider).apiKey }.getOrDefault("")
+                val isLocal = runCatching {
+                    val host = android.net.Uri.parse(endpoint).host.orEmpty()
+                    host.equals("localhost", true) || host == "127.0.0.1" || host == "::1"
+                }.getOrDefault(false)
+
+                if (endpoint.isBlank() || model.isBlank()) {
+                    Toast.makeText(this@ApiHubActivity, "Enter endpoint URL and model ID first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                if (enteredKey.isBlank() && savedKey.isBlank() && !isLocal) {
+                    Toast.makeText(this@ApiHubActivity, "Enter an API key before testing.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                runCatching {
+                    ApiHub.save(this@ApiHubActivity, ApiHub.Config(provider, endpoint, enteredKey, model))
+                }.onFailure {
+                    Toast.makeText(this@ApiHubActivity, "Save settings first: ${it.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+
+                statusText.text = "Testing $provider…"
+                isEnabled = false
+                AiProviderManager(this@ApiHubActivity).ask(
+                    "Reply with exactly: JARVIS connection successful"
+                ) { result ->
+                    isEnabled = true
+                    val message = result.fold(
+                        { response -> "CONNECTED • $provider\n${response.take(240)}" },
+                        { error -> "CONNECTION FAILED • $provider\n${error.message ?: error.javaClass.simpleName}" }
+                    )
+                    statusText.text = message
+                    Toast.makeText(
+                        this@ApiHubActivity,
+                        if (result.isSuccess) "AI connection successful." else "AI connection failed. Read the status below.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         })
 
-        val advancedTitle = TextView(this).apply {
-            text = "GEMINI MODEL"
-            textSize = 16f
-            setTextColor(Color.CYAN)
-            setPadding(0, 24, 0, 8)
-        }
-        root.addView(advancedTitle)
-        val advanced = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
-        }
-        root.addView(advanced)
-        val model = edit(ApiHub.DEFAULT_MODEL, "Gemini model ID")
-        advanced.addView(model)
-        advanced.addView(Button(this).apply {
-            text = "SAVE MODEL"
+        root.addView(Button(this).apply {
+            text = "CLEAR SELECTED PROVIDER KEY"
             setOnClickListener {
-                Toast.makeText(this@ApiHubActivity, "Model is currently fixed to ${ApiHub.DEFAULT_MODEL} to keep the Gemini endpoint consistent.", Toast.LENGTH_LONG).show()
-                model.setText(ApiHub.DEFAULT_MODEL)
+                val provider = selectedProvider()
+                runCatching { ApiHub.clear(this@ApiHubActivity, provider) }
+                    .onSuccess {
+                        keyField.setText("")
+                        statusText.text = "$provider key cleared."
+                        Toast.makeText(this@ApiHubActivity, "Saved key cleared.", Toast.LENGTH_SHORT).show()
+                    }
+                    .onFailure {
+                        Toast.makeText(this@ApiHubActivity, "Could not clear key.", Toast.LENGTH_LONG).show()
+                    }
             }
         })
-        advancedTitle.setOnClickListener {
-            advanced.visibility = if (advanced.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-        }
 
         root.addView(TextView(this).apply {
-            text = "If saving fails, JARVIS will show an error instead of closing. Never share your API key in screenshots, chat, or GitHub."
+            text = "Providers use their own API billing, quotas and model availability. Never paste API keys into GitHub, screenshots or chat. For custom/local endpoints, use HTTPS unless the host is localhost."
             textSize = 12f
             setTextColor(Color.GRAY)
             setPadding(0, 20, 0, 12)
         })
-        root.addView(Button(this).apply {
-            text = "CLEAR GEMINI KEY"
-            setOnClickListener {
-                runCatching { ApiHub.clear(this@ApiHubActivity) }
-                    .onSuccess {
-                        quickKey.setText("")
-                        detected.text = "No Gemini API key configured"
-                        Toast.makeText(this@ApiHubActivity, "Gemini key cleared", Toast.LENGTH_SHORT).show()
-                    }
-                    .onFailure {
-                        Toast.makeText(this@ApiHubActivity, "Could not clear key. Please try again.", Toast.LENGTH_LONG).show()
-                    }
-            }
-        })
+
         setContentView(ScrollView(this).apply { addView(root) })
     }
 }
