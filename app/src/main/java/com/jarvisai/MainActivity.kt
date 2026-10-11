@@ -172,6 +172,11 @@ class MainActivity : AppCompatActivity() {
             runCatching { binding.motionBubbles.start() }
                 .onFailure { showResponse("Motion effects are unavailable on this device. JARVIS will continue without them.") }
             updateAssistantCard()
+            if (intent.getBooleanExtra("jarvis_wake_overlay_tap", false)) {
+                handler.postDelayed({
+                    if (::binding.isInitialized && !isFinishing && !isDestroyed) startListening()
+                }, 500)
+            }
         } catch (e: Exception) {
             showStartupFallback(e)
         }
@@ -393,6 +398,16 @@ class MainActivity : AppCompatActivity() {
                 else -> assistantRoleLauncher.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT))
             }
         }.onFailure { showResponse("Android could not open the default-assistant setup.") }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("jarvis_wake_overlay_tap", false)) {
+            handler.postDelayed({
+                if (::binding.isInitialized && !isFinishing && !isDestroyed) startListening()
+            }, 350)
+        }
     }
 
     private fun startListening() {
