@@ -20,7 +20,8 @@ object ApiHub {
     private const val KEY_API = "api_key_ciphertext"
     private const val KEY_IV = "api_key_iv"
     const val GEMINI_PROVIDER = "Gemini"
-    const val DEFAULT_MODEL = "gemini-3.8-flash"
+    const val DEFAULT_MODEL = "gemini-2.5-flash"
+    private const val KEY_MODEL = "model"
     private const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
     data class Config(val provider: String, val baseUrl: String, val apiKey: String, val model: String)
@@ -32,7 +33,7 @@ object ApiHub {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("provider", GEMINI_PROVIDER)
             .putString("base_url", DEFAULT_BASE_URL)
-            .putString("model", DEFAULT_MODEL)
+            .putString(KEY_MODEL, config.model.ifBlank { DEFAULT_MODEL })
             .putString(KEY_API, encrypted.first)
             .putString(KEY_IV, encrypted.second)
             .apply()
