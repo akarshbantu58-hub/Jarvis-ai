@@ -40,7 +40,9 @@
             <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
             <meta-data android:name="android.voice_interaction" android:resource="@xml/voice_interaction_service" />
         </service>
-        <service android:name=".JarvisSessionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <service android:name=".JarvisSessionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter><action android:name="android.service.voice.VoiceInteractionSessionService" /></intent-filter>
+        </service>
         <service android:name=".JarvisAccessibilityService" android:exported="false" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/jarvis_accessibility_service" />
