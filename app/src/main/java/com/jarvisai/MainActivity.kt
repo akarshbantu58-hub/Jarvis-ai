@@ -111,7 +111,11 @@ class MainActivity : AppCompatActivity() {
                 showResponse(if (continuousVoice) "Continuous conversation enabled." else "Push-to-talk mode enabled.")
             }
             binding.voiceModeButton.setOnLongClickListener { toggleWakeWord(); true }
-            binding.sendButton.setOnClickListener { processCommand(binding.commandInput.text?.toString().orEmpty()) }
+            binding.sendButton.setOnClickListener {
+                val submitted = binding.commandInput.text?.toString().orEmpty()
+                if (submitted.isNotBlank()) binding.commandInput.text?.clear()
+                processCommand(submitted)
+            }
             binding.devCard.setOnClickListener { startActivity(Intent(this, DeveloperStudioActivity::class.java)) }
             binding.cameraCard.setOnClickListener { startActivity(Intent(this, CameraActivity::class.java)) }
             binding.settingsCard.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
@@ -474,6 +478,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         binding.commandInput.setText(command)
+        appendChatMessage(command, fromUser = true)
         MemoryStore.addConversation(this, "user", command)
         val lower = command.lowercase(Locale.getDefault()).trim()
 
@@ -550,8 +555,46 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun appendChatMessage(text: String, fromUser: Boolean) {
+        if (!::binding.isInitialized || isFinishing || isDestroyed || text.isBlank()) return
+        runCatching {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = if (fromUser) Gravity.END else Gravity.START
+                setPadding(0, 5, 0, 5)
+            }
+            val bubble = TextView(this).apply {
+                this.text = text
+                textSize = 13f
+                setTextColor(if (fromUser) Color.WHITE else Color.rgb(241, 248, 255))
+                setPadding(14, 10, 14, 10)
+                setBackgroundResource(if (fromUser) R.drawable.chat_bubble_user else R.drawable.chat_bubble_ai)
+                maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt()
+                contentDescription = if (fromUser) "You said: $text" else "JARVIS said: $text"
+            }
+            row.addView(bubble, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            binding.chatMessagesContainer.addView(row)
+            binding.contentScroll.post {
+                if (::binding.isInitialized && !isFinishing && !isDestroyed) {
+                    binding.contentScroll.fullScroll(android.view.View.FOCUS_DOWN)
+                }
+            }
+        }
+    }
+
     private fun showResponse(text: String) {
-        if (::binding.isInitialized && !isFinishing && !isDestroyed) binding.responseText.text = text
+        if (::binding.isInitialized && !isFinishing && !isDestroyed) {
+            binding.responseText.text = text
+            binding.responseText.contentDescription = "Latest JARVIS response: $text"
+            binding.contentScroll.post {
+                if (::binding.isInitialized && !isFinishing && !isDestroyed) {
+                    binding.contentScroll.fullScroll(android.view.View.FOCUS_DOWN)
+                }
+            }
+        }
     }
 
     fun enableOverlay() {
