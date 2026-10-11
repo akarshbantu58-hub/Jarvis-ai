@@ -440,6 +440,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startWakeWordService() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M &&
+            !Settings.canDrawOverlays(this)
+        ) {
+            showResponse("To show the floating JARVIS panel over other apps, enable Display over other apps on the next screen, then return and long-press the voice mode button again.")
+            runCatching {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+            }.onFailure {
+                showResponse("Open Android Settings → Apps → Special access → Display over other apps → JARVIS OS, then allow it.")
+            }
+            return
+        }
         val intent = Intent(this, JarvisVoiceForegroundService::class.java)
             .setAction(JarvisVoiceForegroundService.ACTION_START_WAKE)
         runCatching {
