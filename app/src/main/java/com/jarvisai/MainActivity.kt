@@ -144,7 +144,7 @@ class MainActivity : AppCompatActivity() {
             binding.actionOpenApps.setOnClickListener { startActivity(Intent(this, AutomationActivity::class.java)) }
             binding.actionRecord.setOnClickListener { startListening() }
             binding.actionLiveCamera.setOnClickListener { startActivity(Intent(this, CameraActivity::class.java)) }
-            binding.actionShareScreen.setOnClickListener { showResponse("Screen sharing protocol initialized.") }
+            binding.actionShareScreen.setOnClickListener { startActivity(Intent(this, ScreenCaptureActivity::class.java)) }
             binding.actionMore.setOnClickListener { startActivity(Intent(this, FeatureCenterActivity::class.java)) }
 
             handler.post(clock)
