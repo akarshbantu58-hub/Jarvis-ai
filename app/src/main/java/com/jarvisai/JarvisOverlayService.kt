@@ -10,13 +10,14 @@ import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
- * Small, user-visible floating entry point shown after the opted-in wake-word
- * service detects "Hey JARVIS". The user can tap it to open the full assistant.
- * Android's overlay permission is required and can never be granted silently.
+ * User-visible floating entry point shown after the opted-in wake-word service
+ * detects "Hey JARVIS". Talk opens the existing voice pipeline; Close dismisses
+ * the panel. Overlay permission is required and is never granted silently.
  */
 class JarvisOverlayService : Service() {
     companion object {
@@ -42,10 +43,11 @@ class JarvisOverlayService : Service() {
 
     private fun showOverlay() {
         if (view != null) return
+
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(18), dp(12), dp(18), dp(12))
+            setPadding(dp(18), dp(14), dp(18), dp(12))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(0xF01A2B40.toInt(), 0xF009111C.toInt())
@@ -55,6 +57,7 @@ class JarvisOverlayService : Service() {
             }
             elevation = dp(18).toFloat()
         }
+
         val title = TextView(this).apply {
             text = "✦  JARVIS IS HERE"
             textSize = 14f
@@ -63,22 +66,50 @@ class JarvisOverlayService : Service() {
             gravity = Gravity.CENTER
         }
         val subtitle = TextView(this).apply {
-            text = "Tap to talk  •  Tap outside to keep using your app"
-            textSize = 10f
+            text = "Ready when you are"
+            textSize = 11f
             setTextColor(0xFF7DD3FC.toInt())
             gravity = Gravity.CENTER
-            setPadding(0, dp(5), 0, 0)
+            setPadding(0, dp(5), 0, dp(10))
         }
         panel.addView(title)
         panel.addView(subtitle)
-        panel.setOnClickListener {
-            val intent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                putExtra("jarvis_wake_overlay_tap", true)
-            }
-            runCatching { startActivity(intent) }
-            stopSelf()
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
         }
+        val talk = Button(this).apply {
+            text = "TALK"
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(0xFF087EA4.toInt())
+                cornerRadius = dp(14).toFloat()
+            }
+            setPadding(dp(18), dp(4), dp(18), dp(4))
+            setOnClickListener { openVoiceAssistant() }
+        }
+        val close = Button(this).apply {
+            text = "CLOSE"
+            isAllCaps = false
+            setTextColor(0xFFBAE6FD.toInt())
+            background = GradientDrawable().apply {
+                setColor(0xFF172536.toInt())
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1), 0xFF36566B.toInt())
+            }
+            setPadding(dp(14), dp(4), dp(14), dp(4))
+            setOnClickListener { stopSelf() }
+        }
+        controls.addView(talk, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
+        ).apply { marginEnd = dp(8) })
+        controls.addView(close, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
+        ))
+        panel.addView(controls)
+
         @Suppress("DEPRECATION")
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -98,6 +129,15 @@ class JarvisOverlayService : Service() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         wm?.addView(panel, params)
         view = panel
+    }
+
+    private fun openVoiceAssistant() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra("jarvis_wake_overlay_tap", true)
+        }
+        runCatching { startActivity(intent) }
+        stopSelf()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
