@@ -59,8 +59,14 @@ object ApiHub {
             GEMINI_PROVIDER,
             DEFAULT_BASE_URL,
             decrypt(prefs.getString(KEY_API, null), prefs.getString(KEY_IV, null)),
-            DEFAULT_MODEL
+            prefs.getString(KEY_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
         )
+    }
+
+    fun setModel(context: Context, model: String) {
+        val clean = model.trim()
+        require(clean.startsWith("gemini-") && clean.length <= 120) { "Invalid Gemini model ID." }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_MODEL, clean).apply()
     }
 
     fun clear(context: Context) {
@@ -76,7 +82,7 @@ object ApiHub {
     fun exportSafe(context: Context): JSONObject = JSONObject().apply {
         put("provider", GEMINI_PROVIDER)
         put("baseUrl", DEFAULT_BASE_URL)
-        put("model", DEFAULT_MODEL)
+        put("model", load(context).model)
         put("configured", load(context).apiKey.isNotBlank())
     }
 
