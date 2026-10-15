@@ -108,7 +108,8 @@ class JarvisOverlayService : Service() {
         val input = EditText(this).apply {
             hint = "Ask Gemini…"
             textSize = 14f
-            singleLine = true
+            maxLines = 1
+            setSingleLine(true)
             setTextColor(Color.WHITE)
             setHintTextColor(0xFF94A3B8.toInt())
             setPadding(dp(10), 0, dp(10), 0)
