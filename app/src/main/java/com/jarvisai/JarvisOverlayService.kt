@@ -9,24 +9,31 @@ import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import kotlin.math.max
+import kotlin.math.min
 
 /**
- * User-visible floating entry point shown after the opted-in wake-word service
- * detects "Hey JARVIS". Talk opens the existing voice pipeline; Close dismisses
- * the panel. Overlay permission is required and is never granted silently.
+ * Floating JARVIS entry point. Drag the title bar to reposition the panel;
+ * its last position is saved locally and restored next time the overlay opens.
  */
 class JarvisOverlayService : Service() {
     companion object {
         const val ACTION_SHOW_WAKE = "com.jarvisai.action.SHOW_WAKE_OVERLAY"
         const val ACTION_HIDE = "com.jarvisai.action.HIDE_OVERLAY"
+        private const val POSITION_PREFS = "jarvis_overlay_position"
+        private const val KEY_X = "overlay_x"
+        private const val KEY_Y = "overlay_y"
     }
 
     private var wm: WindowManager? = null
     private var view: LinearLayout? = null
+    private var overlayParams: WindowManager.LayoutParams? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_HIDE) {
@@ -59,11 +66,13 @@ class JarvisOverlayService : Service() {
         }
 
         val title = TextView(this).apply {
-            text = "✦  JARVIS IS HERE"
+            text = "⠿  JARVIS IS HERE  ·  DRAG"
             textSize = 14f
             setTextColor(Color.WHITE)
-            letterSpacing = 0.04f
+            letterSpacing = 0.025f
             gravity = Gravity.CENTER
+            contentDescription = "JARVIS overlay drag handle. Touch and move to reposition."
+            setPadding(dp(4), dp(4), dp(4), dp(4))
         }
         val subtitle = TextView(this).apply {
             text = "Ready when you are"
@@ -116,19 +125,76 @@ class JarvisOverlayService : Service() {
         } else {
             WindowManager.LayoutParams.TYPE_PHONE
         }
+        val prefs = getSharedPreferences(POSITION_PREFS, MODE_PRIVATE)
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = dp(54)
+            gravity = Gravity.TOP or Gravity.START
+            x = max(0, prefs.getInt(KEY_X, dp(24)))
+            y = max(dp(24), prefs.getInt(KEY_Y, dp(54)))
         }
+
+        attachDragHandle(title, panel, params)
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         wm?.addView(panel, params)
+        overlayParams = params
         view = panel
+    }
+
+    private fun attachDragHandle(
+        handle: View,
+        panel: View,
+        params: WindowManager.LayoutParams
+    ) {
+        var startRawX = 0f
+        var startRawY = 0f
+        var startX = 0
+        var startY = 0
+        var moved = false
+
+        handle.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startRawX = event.rawX
+                    startRawY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    moved = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = (event.rawX - startRawX).toInt()
+                    val dy = (event.rawY - startRawY).toInt()
+                    if (kotlin.math.abs(dx) > dp(3) || kotlin.math.abs(dy) > dp(3)) {
+                        moved = true
+                    }
+                    if (moved) {
+                        val metrics = resources.displayMetrics
+                        val maxX = max(0, metrics.widthPixels - panel.width)
+                        val maxY = max(dp(24), metrics.heightPixels - panel.height)
+                        params.x = min(max(0, startX + dx), maxX)
+                        params.y = min(max(dp(24), startY + dy), maxY)
+                        runCatching { wm?.updateViewLayout(panel, params) }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (moved) {
+                        getSharedPreferences(POSITION_PREFS, MODE_PRIVATE).edit()
+                            .putInt(KEY_X, params.x)
+                            .putInt(KEY_Y, params.y)
+                            .apply()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private fun openVoiceAssistant() {
@@ -145,6 +211,7 @@ class JarvisOverlayService : Service() {
     override fun onDestroy() {
         view?.let { runCatching { wm?.removeView(it) } }
         view = null
+        overlayParams = null
         wm = null
         super.onDestroy()
     }
