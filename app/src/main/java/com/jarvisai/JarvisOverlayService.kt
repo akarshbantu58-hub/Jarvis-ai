@@ -1,6 +1,7 @@
 package com.jarvisai
 
 import android.app.AlertDialog
+import android.app.Dialog
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -376,25 +377,146 @@ class JarvisOverlayService : Service() {
     }
 
     private fun showAssistantMenu() {
-        val items = arrayOf("New chat", "Previous chats", "Account settings", "Google sign-in", "Floating assistant settings")
-        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("JARVIS")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        chatPrefs.edit().remove("history").apply()
-                        responseView?.text = "New conversation started. Ask JARVIS anything."
-                    }
-                    1 -> showSavedChats()
-                    2 -> showAccountSettings()
-                    3 -> showGoogleSignInInfo()
-                    4 -> AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                        .setTitle("Floating assistant")
-                        .setMessage("Drag the JARVIS title to move the panel. Use − / + to collapse or expand it. Its position is saved on this device.")
-                        .setPositiveButton("Got it", null).show()
-                }
-            }.show()
+        val dialog = Dialog(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(24), dp(18), dp(18))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(0xF01A2029.toInt(), 0xF00C121C.toInt(), 0xF01D1B2B.toInt())
+            ).apply {
+                cornerRadius = dp(28).toFloat()
+                setStroke(dp(1), 0x667BE7FF)
+            }
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val brand = TextView(this).apply {
+            text = "J.A.R.V.I.S."
+            textSize = 22f
+            setTextColor(0xFFF2F7FF.toInt())
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        }
+        top.addView(brand, LinearLayout.LayoutParams(0, dp(52), 1f))
+        val close = TextView(this).apply {
+            text = "×"
+            textSize = 28f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFE2F4FF.toInt())
+            background = glassBackground(0x332C4356, 0x557BE7FF)
+            setOnClickListener { dialog.dismiss() }
+        }
+        top.addView(close, LinearLayout.LayoutParams(dp(44), dp(44)))
+        root.addView(top)
+        val subtitle = TextView(this).apply {
+            text = "YOUR PERSONAL AI"
+            textSize = 10f
+            letterSpacing = 0.18f
+            setTextColor(0xFF7DDCFF.toInt())
+            setPadding(0, 0, 0, dp(18))
+        }
+        root.addView(subtitle)
+
+        val scroll = ScrollView(this).apply { overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS }
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(rows)
+        fun section(label: String) {
+            rows.addView(TextView(this).apply {
+                text = label
+                textSize = 12f
+                setTextColor(0xFF91A4B9.toInt())
+                setPadding(dp(8), dp(16), 0, dp(8))
+            })
+        }
+        fun item(icon: String, label: String, description: String = "", action: () -> Unit) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(9), dp(10), dp(9))
+                background = glassBackground(0x222F4053, 0x3349DFFF)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { dialog.dismiss(); action() }
+            }
+            val glyph = TextView(this).apply {
+                text = icon
+                textSize = 20f
+                gravity = Gravity.CENTER
+                setTextColor(0xFF8DEBFF.toInt())
+            }
+            card.addView(glyph, LinearLayout.LayoutParams(dp(38), dp(42)))
+            val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            labels.addView(TextView(this).apply {
+                text = label
+                textSize = 15f
+                setTextColor(0xFFF0F5FC.toInt())
+            })
+            if (description.isNotBlank()) labels.addView(TextView(this).apply {
+                text = description
+                textSize = 11f
+                setTextColor(0xFFA2B2C5.toInt())
+            })
+            card.addView(labels, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            rows.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(7)
+            })
+        }
+        section("WORKSPACE")
+        item("＋", "New chat", "Start a fresh conversation") {
+            chatPrefs.edit().remove("history").apply()
+            responseView?.text = "New conversation started. Ask JARVIS anything."
+        }
+        item("◷", "Previous chats", "Saved on this device") { showSavedChats() }
+        item("⚙", "Assistant settings", "Floating panel and preferences") {
+            AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Floating assistant")
+                .setMessage("Drag the JARVIS title to move the panel. Use − / + to collapse or expand it. Its position is saved on this device.")
+                .setPositiveButton("OK", null).show()
+        }
+        section("ACCOUNT")
+        item("◎", "Google account", "Sign-in configuration") { showAccountSettings() }
+        item("↗", "Continue with Google", "OAuth setup required") { showGoogleSignInInfo() }
+        section("J.A.R.V.I.S.")
+        item("◈", "AI connection", "Uses the app's configured AI provider") {
+            AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("AI connection")
+                .setMessage("JARVIS sends prompts through the existing configured AI provider. Check the app's AI settings to configure your provider and API key.")
+                .setPositiveButton("OK", null).show()
+        }
+        root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        val profile = TextView(this).apply {
+            text = "  ●   Local profile  ·  Chats stay on this device"
+            textSize = 11f
+            setTextColor(0xFF9DB3C8.toInt())
+            setPadding(dp(8), dp(18), dp(8), dp(8))
+        }
+        root.addView(profile)
+        dialog.setContentView(root)
+        dialog.window?.let { window ->
+            window.setBackgroundDrawableResource(android.R.color.transparent)
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.setDimAmount(0.58f)
+            window.setLayout((resources.displayMetrics.widthPixels * 0.84f).toInt(), resources.displayMetrics.heightPixels)
+            window.setGravity(Gravity.START or Gravity.TOP)
+            window.attributes = window.attributes.apply {
+                width = (resources.displayMetrics.widthPixels * 0.84f).toInt()
+                height = resources.displayMetrics.heightPixels
+                gravity = Gravity.START or Gravity.TOP
+            }
+        }
+        dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.84f).toInt(), resources.displayMetrics.heightPixels)
+        dialog.window?.setGravity(Gravity.START or Gravity.TOP)
     }
+
+    private fun glassBackground(fill: Int, stroke: Int): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(fill)
+            cornerRadius = dp(17).toFloat()
+            setStroke(dp(1), stroke)
+        }
 
     private fun showSavedChats() {
         val history = chatPrefs.getString("history", "").orEmpty().trim()
