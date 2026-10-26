@@ -12,6 +12,8 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.inputmethod.EditorInfo
+import android.text.InputType
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -43,6 +45,9 @@ class JarvisOverlayService : Service() {
     private var responseView: TextView? = null
     private var promptInput: EditText? = null
     private var speechManager: TextToSpeechManager? = null
+    private var expanded = true
+    private var expandedViews: List<View> = emptyList()
+    private var collapseButton: Button? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_HIDE) {
@@ -72,15 +77,37 @@ class JarvisOverlayService : Service() {
             }
             elevation = dp(18).toFloat()
         }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            contentDescription = "JARVIS floating assistant header. Drag to move."
+        }
         val title = TextView(this).apply {
-            text = "⠿  JARVIS  ·  DRAG TO MOVE"
-            textSize = 14f
+            text = "✦  JARVIS"
+            textSize = 16f
             setTextColor(Color.WHITE)
             letterSpacing = 0.025f
-            gravity = Gravity.CENTER
+            gravity = Gravity.CENTER_VERTICAL
             contentDescription = "Drag this header to move JARVIS."
-            setPadding(dp(4), dp(4), dp(4), dp(4))
+            setPadding(dp(4), dp(8), dp(4), dp(8))
         }
+        val minimize = Button(this).apply {
+            text = "−"
+            textSize = 22f
+            isAllCaps = false
+            setTextColor(0xFFE0E7FF.toInt())
+            background = GradientDrawable().apply {
+                setColor(0xFF26364A.toInt())
+                cornerRadius = dp(18).toFloat()
+            }
+            setPadding(dp(10), 0, dp(10), 0)
+            contentDescription = "Collapse or expand JARVIS chat"
+            setOnClickListener { toggleExpanded(panel) }
+        }
+        collapseButton = minimize
+        header.addView(title, LinearLayout.LayoutParams(0, dp(44), 1f))
+        header.addView(minimize, LinearLayout.LayoutParams(dp(42), dp(40)))
+        panel.addView(header)
         val subtitle = TextView(this).apply {
             text = "Ready when you are"
             textSize = 11f
@@ -88,7 +115,6 @@ class JarvisOverlayService : Service() {
             gravity = Gravity.CENTER
             setPadding(0, dp(4), 0, dp(8))
         }
-        panel.addView(title)
         panel.addView(subtitle)
 
         val reply = TextView(this).apply {
@@ -97,10 +123,17 @@ class JarvisOverlayService : Service() {
             setTextColor(0xFFE2F5FF.toInt())
             gravity = Gravity.START
             setPadding(dp(8), dp(6), dp(8), dp(8))
-            maxLines = 4
+            maxLines = 8
+            setLineSpacing(dp(2).toFloat(), 1.05f)
+            background = GradientDrawable().apply {
+                setColor(0xB3122030.toInt())
+                cornerRadius = dp(16).toFloat()
+            }
         }
         responseView = reply
-        panel.addView(reply, LinearLayout.LayoutParams(dp(280), LinearLayout.LayoutParams.WRAP_CONTENT))
+        panel.addView(reply, LinearLayout.LayoutParams(dp(280), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(10)
+        })
 
         val entryRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -109,8 +142,10 @@ class JarvisOverlayService : Service() {
         val input = EditText(this).apply {
             hint = "Ask Gemini…"
             textSize = 14f
-            maxLines = 1
-            setSingleLine(true)
+            maxLines = 4
+            setSingleLine(false)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            imeOptions = EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI
             setTextColor(Color.WHITE)
             setHintTextColor(0xFF94A3B8.toInt())
             setPadding(dp(10), 0, dp(10), 0)
@@ -121,6 +156,16 @@ class JarvisOverlayService : Service() {
             }
             setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) enableKeyboardFocus()
+            }
+            setOnEditorActionListener { _, actionId, event ->
+                val sendAction = actionId == EditorInfo.IME_ACTION_SEND
+                val enterAction = event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER &&
+                    event.action == android.view.KeyEvent.ACTION_DOWN &&
+                    event.isCtrlPressed
+                if (sendAction || enterAction) {
+                    sendPrompt()
+                    true
+                } else false
             }
         }
         promptInput = input
@@ -203,6 +248,7 @@ class JarvisOverlayService : Service() {
             LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
         ))
         panel.addView(controls)
+        expandedViews = listOf(subtitle, reply, entryRow, controls)
 
         @Suppress("DEPRECATION")
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -223,11 +269,32 @@ class JarvisOverlayService : Service() {
             x = max(0, prefs.getInt(KEY_X, dp(24)))
             y = max(dp(24), prefs.getInt(KEY_Y, dp(54)))
         }
-        attachDragHandle(title, panel, params)
+        attachDragHandle(header, panel, params)
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         wm?.addView(panel, params)
         overlayParams = params
         view = panel
+        expanded = true
+        updateExpandedUi(panel)
+    }
+
+    private fun toggleExpanded(panel: LinearLayout) {
+        expanded = !expanded
+        updateExpandedUi(panel)
+    }
+
+    private fun updateExpandedUi(panel: LinearLayout) {
+        expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+        panel.setPadding(
+            dp(if (expanded) 16 else 8),
+            dp(if (expanded) 12 else 4),
+            dp(if (expanded) 16 else 8),
+            dp(if (expanded) 12 else 4)
+        )
+        collapseButton?.text = if (expanded) "−" else "+"
+        overlayParams?.let { params ->
+            runCatching { wm?.updateViewLayout(panel, params) }
+        }
     }
 
     private fun enableKeyboardFocus() {
@@ -238,6 +305,9 @@ class JarvisOverlayService : Service() {
     }
 
     private fun sendPrompt() {
+        if (!expanded) {
+            view?.let { toggleExpanded(it) }
+        }
         val prompt = promptInput?.text?.toString()?.trim().orEmpty()
         if (prompt.isBlank()) {
             responseView?.text = "Type a question first."
@@ -327,6 +397,8 @@ class JarvisOverlayService : Service() {
         overlayParams = null
         responseView = null
         promptInput = null
+        expandedViews = emptyList()
+        collapseButton = null
         speechManager?.release()
         speechManager = null
         wm = null
