@@ -42,6 +42,7 @@ class JarvisOverlayService : Service() {
     private var overlayParams: WindowManager.LayoutParams? = null
     private var responseView: TextView? = null
     private var promptInput: EditText? = null
+    private var speechManager: TextToSpeechManager? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_HIDE) {
@@ -156,6 +157,30 @@ class JarvisOverlayService : Service() {
             setPadding(dp(18), dp(4), dp(18), dp(4))
             setOnClickListener { openVoiceAssistant() }
         }
+        val speak = Button(this).apply {
+            text = "SPEAK"
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(0xFF34445A.toInt())
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1), 0xFF38BDF8.toInt())
+            }
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            setOnClickListener {
+                val answer = responseView?.text?.toString().orEmpty()
+                if (answer.isNotBlank() &&
+                    answer != "Ask JARVIS a question below." &&
+                    answer != "JARVIS is thinking…" &&
+                    answer != "Type a question first."
+                ) {
+                    if (speechManager == null) speechManager = TextToSpeechManager(applicationContext)
+                    speechManager?.speak(answer)
+                } else {
+                    responseView?.text = "Ask a question and wait for the answer before tapping SPEAK."
+                }
+            }
+        }
         val close = Button(this).apply {
             text = "CLOSE"
             isAllCaps = false
@@ -170,7 +195,10 @@ class JarvisOverlayService : Service() {
         }
         controls.addView(talk, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
-        ).apply { marginEnd = dp(8) })
+        ).apply { marginEnd = dp(6) })
+        controls.addView(speak, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
+        ).apply { marginEnd = dp(6) })
         controls.addView(close, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
         ))
@@ -299,6 +327,8 @@ class JarvisOverlayService : Service() {
         overlayParams = null
         responseView = null
         promptInput = null
+        speechManager?.release()
+        speechManager = null
         wm = null
         super.onDestroy()
     }
