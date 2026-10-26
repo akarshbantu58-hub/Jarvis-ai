@@ -22,6 +22,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import kotlin.math.max
 import kotlin.math.min
@@ -149,7 +150,19 @@ class JarvisOverlayService : Service() {
             }
         }
         responseView = reply
-        panel.addView(reply, LinearLayout.LayoutParams(dp(280), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+        val replyScroll = ScrollView(this).apply {
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            background = GradientDrawable().apply {
+                setColor(0xB3122030.toInt())
+                cornerRadius = dp(16).toFloat()
+            }
+            addView(reply, ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        panel.addView(replyScroll, LinearLayout.LayoutParams(dp(280), dp(180)).apply {
             bottomMargin = dp(10)
         })
 
