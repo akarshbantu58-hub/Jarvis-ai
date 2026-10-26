@@ -1,5 +1,6 @@
 package com.jarvisai
 
+import android.app.AlertDialog
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -48,6 +49,8 @@ class JarvisOverlayService : Service() {
     private var expanded = true
     private var expandedViews: List<View> = emptyList()
     private var collapseButton: Button? = null
+    private var menuButton: Button? = null
+    private val chatPrefs by lazy { getSharedPreferences("jarvis_saved_chats", MODE_PRIVATE) }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_HIDE) {
@@ -105,7 +108,22 @@ class JarvisOverlayService : Service() {
             setOnClickListener { toggleExpanded(panel) }
         }
         collapseButton = minimize
+        val more = Button(this).apply {
+            text = "⋮"
+            textSize = 22f
+            isAllCaps = false
+            setTextColor(0xFFE0E7FF.toInt())
+            background = GradientDrawable().apply {
+                setColor(0x662B3C50)
+                cornerRadius = dp(18).toFloat()
+                setStroke(dp(1), 0x5538BDF8)
+            }
+            contentDescription = "Previous chats, account settings and more"
+            setOnClickListener { showAssistantMenu() }
+        }
+        menuButton = more
         header.addView(title, LinearLayout.LayoutParams(0, dp(44), 1f))
+        header.addView(more, LinearLayout.LayoutParams(dp(38), dp(40)).apply { marginEnd = dp(5) })
         header.addView(minimize, LinearLayout.LayoutParams(dp(42), dp(40)))
         panel.addView(header)
         val subtitle = TextView(this).apply {
@@ -315,10 +333,12 @@ class JarvisOverlayService : Service() {
         }
         responseView?.text = "JARVIS is thinking…"
         promptInput?.text?.clear()
+        saveChatLine("You: $prompt")
         ApiClient.ask(applicationContext, prompt) { answer ->
             mainHandler.post {
                 if (view != null) {
                     responseView?.text = answer
+                    saveChatLine("JARVIS: $answer")
                     val input = promptInput
                     input?.let {
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -334,6 +354,61 @@ class JarvisOverlayService : Service() {
                 }
             }
         }
+    }
+
+    private fun saveChatLine(line: String) {
+        val old = chatPrefs.getString("history", "").orEmpty()
+        val updated = (old.lines().filter { it.isNotBlank() } + line).takeLast(120)
+        chatPrefs.edit().putString("history", updated.joinToString("\n")).putLong("last_saved_at", System.currentTimeMillis()).apply()
+    }
+
+    private fun showAssistantMenu() {
+        val items = arrayOf("New chat", "Previous chats", "Account settings", "Google sign-in", "Floating assistant settings")
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("JARVIS")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        chatPrefs.edit().remove("history").apply()
+                        responseView?.text = "New conversation started. Ask JARVIS anything."
+                    }
+                    1 -> showSavedChats()
+                    2 -> showAccountSettings()
+                    3 -> showGoogleSignInInfo()
+                    4 -> AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                        .setTitle("Floating assistant")
+                        .setMessage("Drag the JARVIS title to move the panel. Use − / + to collapse or expand it. Its position is saved on this device.")
+                        .setPositiveButton("Got it", null).show()
+                }
+            }.show()
+    }
+
+    private fun showSavedChats() {
+        val history = chatPrefs.getString("history", "").orEmpty().trim()
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Previous chats · This device")
+            .setMessage(if (history.isBlank()) "No saved messages yet. Send a message to create your local chat history." else history)
+            .setPositiveButton("Close", null)
+            .setNeutralButton("Clear history") { _, _ -> chatPrefs.edit().remove("history").apply() }
+            .show()
+    }
+
+    private fun showAccountSettings() {
+        val signedIn = chatPrefs.getString("google_account_email", null)
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Account")
+            .setMessage(if (signedIn == null) "Not signed in. Chat history is saved locally on this device. Google sign-in needs the app's OAuth client configuration before secure account sign-in can be enabled." else "Signed in as $signedIn")
+            .setPositiveButton("OK", null)
+            .setNeutralButton("Google sign-in") { _, _ -> showGoogleSignInInfo() }
+            .show()
+    }
+
+    private fun showGoogleSignInInfo() {
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Continue with Google")
+            .setMessage("Google sign-in UI is planned, but secure authentication is not active yet. It requires a Google OAuth client ID configured for this Android package and signing certificate. This build does not pretend you are signed in.")
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun attachDragHandle(
@@ -399,6 +474,7 @@ class JarvisOverlayService : Service() {
         promptInput = null
         expandedViews = emptyList()
         collapseButton = null
+        menuButton = null
         speechManager?.release()
         speechManager = null
         wm = null
