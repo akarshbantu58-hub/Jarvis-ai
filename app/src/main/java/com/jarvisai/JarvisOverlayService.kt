@@ -269,7 +269,7 @@ class JarvisOverlayService : Service() {
             x = max(0, prefs.getInt(KEY_X, dp(24)))
             y = max(dp(24), prefs.getInt(KEY_Y, dp(54)))
         }
-        attachDragHandle(header, panel, params)
+        attachDragHandle(title, panel, params)
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         wm?.addView(panel, params)
         overlayParams = params
