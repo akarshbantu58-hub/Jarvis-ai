@@ -18,6 +18,7 @@ import android.view.inputmethod.EditorInfo
 import android.text.InputType
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -158,9 +159,9 @@ class JarvisOverlayService : Service() {
                 setColor(0xB3122030.toInt())
                 cornerRadius = dp(16).toFloat()
             }
-            addView(reply, ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.WRAP_CONTENT
+            addView(reply, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
         panel.addView(replyScroll, LinearLayout.LayoutParams(dp(280), dp(180)).apply {
